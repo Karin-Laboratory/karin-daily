@@ -53,6 +53,15 @@ class KarinPipelineTests(unittest.TestCase):
         self.assertFalse(called)
         self.assertEqual(result["summary"], "テスト記事")
 
+    def test_empty_refresh_preserves_existing_database(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "daily.sqlite3"
+            cfg = {"database": str(db_path), "feeds": [["test", "https://feed.invalid/rss"]]}
+            with patch("pipeline.fetch_feed", side_effect=OSError("feed unavailable")):
+                with self.assertRaisesRegex(RuntimeError, "existing digest preserved"):
+                    run_once(cfg)
+            self.assertFalse(db_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -57,6 +57,11 @@ def run_once(cfg):
     for item in raw:
         unique.setdefault(item["normalized_url"], item)
     items = list(unique.values())
+    # Do not replace a healthy digest with an empty page during a transient
+    # feed/network outage. Let systemd record a failed refresh and retry.
+    if not items:
+        detail = "; ".join(errors) or "all feeds returned no articles"
+        raise RuntimeError(f"refresh produced no articles; existing digest preserved: {detail}")
     for item in items:
         try:
             item["body"] = fetch_article(item["url"]) if cfg["article_fetch"] else ""

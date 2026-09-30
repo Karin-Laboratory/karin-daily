@@ -72,6 +72,10 @@ SQLite database, and manages the service with the included systemd units:
 - `karin-daily/karin-daily-refresh.service`
 - `karin-daily/karin-daily-refresh.timer`
 
+If every feed is temporarily unavailable, a refresh fails without deleting or
+replacing the last successful digest. The timer records the failure and retries
+on its next run, so a transient network outage cannot produce a blank page.
+
 `karin-daily/nginx-karin-daily.conf` is an optional loopback reverse-proxy
 example. Production deployment must not replace the existing `karin-ai`,
 Cloudflare Tunnel, or unrelated Karin services.

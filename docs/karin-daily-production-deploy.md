@@ -8,9 +8,10 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
 
 ## 配置
 
-まず対象SHAを設定する。
+まず対象SHAを設定する。`main` の現在値を確認してから、確認済みのSHAを指定する。
 
-    export TARGET_COMMIT=1dd680f2e84821fa6a7fc760f79ada5dc8faaf72
+    export TARGET_COMMIT="$(git ls-remote https://github.com/Karin-Laboratory/karin-daily.git refs/heads/main | cut -f1)"
+    test -n "$TARGET_COMMIT"
 
 次のブロックを実行する。
 
@@ -33,6 +34,11 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
     git -C "$WORK/repo" archive "$TARGET_COMMIT" karin-daily | tar -x -C "$WORK/new"
     sudo rsync -a --delete --exclude 'data/' "$WORK/new/karin-daily/" "$APP/"
     sudo chown -R ubuntu:ubuntu "$APP"
+
+    # systemd does not load unit files from the application directory.
+    sudo install -m 0644 "$APP/karin-daily.service" /etc/systemd/system/karin-daily.service
+    sudo install -m 0644 "$APP/karin-daily-refresh.service" /etc/systemd/system/karin-daily-refresh.service
+    sudo install -m 0644 "$APP/karin-daily-refresh.timer" /etc/systemd/system/karin-daily-refresh.timer
 
     if [ -f "$APP/requirements.txt" ]; then
       sudo -u ubuntu python3 -m pip install --user -r "$APP/requirements.txt"
@@ -61,6 +67,7 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
     PY
 
     sudo systemctl daemon-reload
+    sudo systemctl enable karin-daily.service karin-daily-refresh.timer
     sudo systemctl restart karin-daily.service
     sudo systemctl start karin-daily-refresh.timer
     sudo systemctl --no-pager --full status karin-daily.service
@@ -68,6 +75,8 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
     curl --fail --silent --show-error http://127.0.0.1:8088/healthz
     curl --fail --silent --show-error http://127.0.0.1:8088/ | grep -q 'Karin Daily'
     curl --fail --silent --show-error https://daily.karin-lab.com/ | grep -q 'Karin Daily'
+    sudo systemctl --no-pager --full status karin-daily-refresh.timer
+    sudo journalctl --no-pager -u karin-daily-refresh.service -n 20
     echo "deploy verified: $TARGET_COMMIT; backup: $BACKUP"
 
 既存SQLiteは data/ を rsync対象外にして保持する。storage.open_db() はCREATE TABLE IF NOT EXISTSとALTER TABLEによる非破壊migrationである。構成は標準ライブラリのみで、requirements.txtが存在するときだけ依存を導入する。HTTPS cloneが認証を要求する場合は、担当者の認証済みGitHub経路を使用し、tokenや秘密値を出力しない。
