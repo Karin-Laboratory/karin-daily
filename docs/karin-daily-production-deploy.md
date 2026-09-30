@@ -1,7 +1,7 @@
 # Karin Daily 本番配置手順
 
 対象repo: https://github.com/Karin-Laboratory/karin-daily.git
-対象commit: 専用repoへpush済みの対象commit SHA
+対象commit: `main`へpush済みの配置対象commit SHA
 配置先: karin-news (10.0.0.100), /opt/karin-daily
 
 karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunnel、karin-ai (127.0.0.1:18080/v1) は変更しない。
@@ -10,7 +10,7 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
 
 まず対象SHAを設定する。
 
-    export TARGET_COMMIT=<専用repoの配置対象commit SHA>
+    export TARGET_COMMIT=d539748
 
 次のブロックを実行する。
 
