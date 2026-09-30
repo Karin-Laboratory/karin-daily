@@ -10,7 +10,7 @@ karin-news上で、以下を実行する。Karin Chat、Nginx、Cloudflare Tunne
 
 まず対象SHAを設定する。
 
-    export TARGET_COMMIT=d539748
+    export TARGET_COMMIT=1dd680f2e84821fa6a7fc760f79ada5dc8faaf72
 
 次のブロックを実行する。
 
