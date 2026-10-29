@@ -16,15 +16,17 @@ const SOURCES = [
   {id:"publickey",name:"Publickey",url:"https://www.publickey1.jp/atom.xml",category:"infrastructure",priority:7},
   {id:"digital-agency",name:"デジタル庁",url:"https://www.digital.go.jp/rss/news.xml",category:"domestic",priority:6},
   {id:"gigazine",name:"GIGAZINE",url:"https://gigazine.net/news/rss_2.0/",category:"technology",priority:6},
-  {id:"akiba-used",name:"AKIBA PC Hotline!",url:"https://akiba-pc.watch.impress.co.jp/data/rss/1.0/ah/feed.rdf",category:"used",priority:9},
-  {id:"hermitage-used",name:"エルミタージュ秋葉原",url:"https://www.gdm.or.jp/feed",category:"used",priority:8},
-  {id:"google-junk",name:"Google ニュース / ジャンクPC",url:"https://news.google.com/rss/search?q=%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AFPC%20when%3A7d&hl=ja&gl=JP&ceid=JP%3Aja",category:"used",priority:6},
-  {id:"google-workstation",name:"Google ニュース / 中古WS",url:"https://news.google.com/rss/search?q=%E4%B8%AD%E5%8F%A4%20%E3%83%AF%E3%83%BC%E3%82%AF%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%20when%3A7d&hl=ja&gl=JP&ceid=JP%3Aja",category:"used",priority:7},
+  {id:"akiba-used",name:"AKIBA PC Hotline! / ジャンク探索",url:"https://akiba-pc.watch.impress.co.jp/data/rss/1.0/ah/feed.rdf",category:"used",priority:5},
+  {id:"hatena-junk",name:"はてなブックマーク / ジャンク",url:"https://b.hatena.ne.jp/search/tag?q=%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF&mode=rss",category:"used",priority:9},
+  {id:"hatena-mod",name:"はてなブックマーク / 改造",url:"https://b.hatena.ne.jp/search/tag?q=%E6%94%B9%E9%80%A0&mode=rss",category:"used",priority:8},
+  {id:"qiita-junk",name:"Qiita / ジャンク技術記録",url:"https://qiita.com/tags/%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF/feed",category:"used",priority:8},
+  {id:"burari-hack",name:"ぶらり＠web / 電子工作",url:"https://burariweb.info/feed",category:"used",priority:8},
+  {id:"hackaday-hardware",name:"Hackaday / Hardware Hacks",url:"https://hackaday.com/feed/",category:"used",priority:7},
 ];
 const CATS = [
   {id:"headlines",label:"ヘッドライン"},{id:"domestic",label:"国内・社会"},{id:"world",label:"国際"},{id:"economy",label:"経済"},
   {id:"ai",label:"AI・生成AI"},{id:"technology",label:"テクノロジー"},
-  {id:"infrastructure",label:"通信・開発"},{id:"hardware",label:"PC・機材"},{id:"used",label:"ジャンク・中古"},{id:"science",label:"科学・医療"}
+  {id:"infrastructure",label:"通信・開発"},{id:"hardware",label:"PC・機材"},{id:"used",label:"ジャンク再活用"},{id:"science",label:"科学・医療"}
 ];
 const PROFILE = {
   domestic:["政府","国会","選挙","政策","社会","東京","災害","地震","防災","行政"],
@@ -32,14 +34,43 @@ const PROFILE = {
   ai:["生成AI","ChatGPT","GPT","Gemini","Claude","LLM","AI","エージェント","OpenAI"],
   infrastructure:["OpenWrt","Linux","Debian","Cloudflare","GitHub","Wi-Fi","5G","ルーター","OSS","ネットワーク","API","ソフトバンク","MT6990"],
   hardware:["CPU","GPU","RTX","PC","SSD","中古","ワークステーション","ARM","半導体","Intel","AMD"],
-  used:["中古","ジャンク","ワークステーション","ThinkPad","Latitude","Precision","Xeon","DDR3","DDR4","Z420","Z620","Z820","T3610","ハードオフ","Qualit","イオシス","じゃんぱら"],
+  used:["OpenWrt","Debian化","Linux化","UART","JTAG","root化","リバースエンジニアリング","ファームウェア","改造","再利用","再活用","転用","hack","repurpose","restore","復活","ジャンク"],
   science:["創薬","薬剤","生命科学","研究","大学","半導体","太陽光","電力","医療","サイエンス"]
 };
 const FOREIGN_HEADLINE = /(?:FRB|アメリカ|米国|イスラエル|スペイン|ウクライナ|ロシア|欧州|韓国|中国|台湾|トランプ|EU|NATO)/i;
 const LOCAL_ALERT = /(?:地震|震度|津波|警報|避難|土砂災害|台風|大雨|大規模停電)/;
 const HIGH_IMPACT = ["速報","発表","決定","成立","大規模","過去最大","初めて","新制度","改正","地震","災害","被害","死亡","停止","障害","流出","値上げ","利下げ","利上げ","新型","公開","発売"];
-const USED_ITEM = /(?:中古|ジャンク|リユース|リファービッシュ|訳あり|難あり|現状品|動作未確認|整備済み|再生品|払い下げ|ハードオフ|アウトレット)/i;
-const USED_HARDWARE = /(?:PC|パソコン|ワークステーション|サーバー|ノート|デスクトップ|SSD|HDD|GPU|CPU|メモリ|マザーボード|ThinkPad|Latitude|Precision|EliteDesk|ProDesk|Z[468]20|MacBook|スマホ|タブレット|ジャンク)/i;
+// The "used" section is a maker's field notebook, NOT a secondhand marketplace.
+const HACK_ACTION = /(?:改造|魔改造|ハック|ハッキング|解析|リバースエンジニアリング|リバエン|分解|修理|修復|復活|蘇ら|再生|再利用|再活用|転用|流用|使い道|活用術|アップサイクル|自作ファーム|ファームウェアを書き|Linux化|Debian化|OpenWrt化|root化|root取得|UART|JTAG|ブートローダ|書き換え|移植|救出|hack(?:ing|ed|s)?|repurpos(?:e|ed|ing)|reus(?:e|ed|ing)|restore|restor(?:ed|ing)|retrofit|reverse.engineer|modif(?:y|ied)|modding|convert(?:ed|ing)?|repair(?:ed|ing)?|teardown|reflash|firmware mod)/i;
+const HARDWARE_TARGET = /(?:ジャンク|中古|旧型|古い|廃棄|払い下げ|使わなくなった|故障|壊れ|不動品|ルーター|ホームルーター|ターミナル|モデム|nasne|テレビ|チューナー|セットトップボックス|STB|NAS|PC|パソコン|ワークステーション|サーバー|ノート|端末|スマホ|携帯|タブレット|Chromebook|Thin Client|シンクライアント|小型コンピュータ|基板|マイコン|電子機器|プリンタ|カメラ|ゲーム機|ラジオ|アンテナ|IoT|デバイス|ルータ|router|modem|laptop|computer|server|console|console|device|gadget|terminal|electronics|watch|printer|camera|keyboard|controller|chip|miner|Tamagotchi|Game Boy|Raspberry|ESP32)/i;
+const RESCUE_OLD = /(?:ジャンク|中古|廃棄|旧型|古い|壊れ|故障|眠っていた|眠っている|眠る|使わなくなった|捨てられた|不動|訳あり|unwanted|discarded|broken|old |obsolete|e.waste|cheap|thrift|second.hand|salvag|vintage|retro)/i;
+const SALE_ONLY = /(?:セール|大量入荷|特価|値下げ|割引|中古品販売|限定販売|在庫|買取|買い取り|最安|円で販売|円で登場|円で購入|円で買える|中古[ABCＳS]ランク|クーポン|お買い得|入荷|新品発売|発売開始|再販|再入荷)/i;
+const HOWTO_SIGNAL = /(?:手順|方法|解説|公開|GitHub|ソース|コード|パッチ|成功|検証|DIY|やってみた|試してみた|作ってみた|改造記録|制作|実装|firmware|tutorial|guide|project|github|source.code|open.source)/i;
+function lowPriceYen(text) {
+ const prices=[...String(text).matchAll(/(?:[¥￥]\s*|約?\s*)(\d{1,3}(?:,\d{3})*|\d{4,7})(?:\s*円|\s*JPY)?/gi)]
+   .map(m=>Number(m[1].replace(/,/g,""))).filter(v=>v>=100&&v<=1000000);
+ const yen=[...String(text).matchAll(/(\d{1,3}(?:,\d{3})*|\d{3,7})\s*円/g)]
+   .map(m=>Number(m[1].replace(/,/g,"")));
+ return (yen.length?yen:prices.filter(v=>v>=500)).reduce((a,b)=>Math.min(a,b),Infinity);
+}
+function reuseSignal(a) {
+ const title=a.title||"", summary=(a.summary||"").slice(0,260), text=title+" "+summary;
+ const action=HACK_ACTION.test(title), hw=HARDWARE_TARGET.test(text), old=RESCUE_OLD.test(text);
+ const how=HOWTO_SIGNAL.test(text), sales=SALE_ONLY.test(title);
+ const price=lowPriceYen(title);
+ const affordable=price<=5000;
+ // A real conversion/repair/hack is worth publishing even without a price.
+ const maker=action&&hw;
+ const revival=!action&&hw&&old&&how&&HACK_ACTION.test(summary);
+ // A repair + bargain discovery (not an ordinary listing) may be interesting.
+ const cheapProject=affordable&&old&&hw&&(action||HACK_ACTION.test(summary));
+ const accept=(maker||revival||cheapProject)&&!(sales&&!action);
+ const points=(action?20:0)+(old?12:0)+(how?9:0)+(affordable?8:0)+(RESCUE_OLD.test(title)?5:0)-(sales?17:0);
+ const reason=/(?:転用|再利用|再活用|流用|repurpos|reus)/i.test(text)?"意外な使い道":
+   /(?:UART|JTAG|OpenWrt|Linux化|Debian化|root化|ファームウェア|firmware|reverse.engineer)/i.test(text)?"改造手順・技術解析":
+   /(?:復活|修理|修復|restore|repair)/i.test(text)?"ジャンク修復の実例":"機材ハックの実例";
+ return {accept,points,reason};
+}
 const TRACKING = /^(utm_|fbclid$|gclid$|yclid$|mc_[ce]id$|ref$)/i;
 const USER_AGENT = "KarinDailyPrototype/0.1 (RSS reader; contact via github.com/Karin-Laboratory/karin-daily)";
 const nowIso = () => new Date().toISOString();
@@ -90,6 +121,10 @@ function score(item,dt){
  const impact=HIGH_IMPACT.reduce((n,k)=>n+(text.includes(k)?4:0),0);
  const interest=Object.values(PROFILE).flat().reduce((n,k)=>n+(text.toLowerCase().includes(k.toLowerCase())?2:0),0);
  const base= item.category==="domestic"||item.category==="economy"?48:42;
+ if(item.category==="used"){
+   const r=reuseSignal(item);
+   return {score:Math.max(0,Math.min(99,49+recency+item.priority+r.points)),reason:r.reason};
+ }
  const safety=LOCAL_ALERT.test(item.title)?22:0;
  const domesticBonus=item.category==="domestic"&&/(?:国内|日本|政府|東京|千葉|大阪|県|市|首相)/.test(item.title)?7:0;
  const score=Math.max(0,Math.min(99,base+recency+Math.min(18,impact)+Math.min(19,interest)+item.priority+safety+domesticBonus));
@@ -97,7 +132,7 @@ function score(item,dt){
 }
 function editorial(raw,previous) {
  const dt=Date.now();
- const combined=[...raw,...(previous?.articles||[])].filter(a=>a.url&&a.title&&Date.parse(a.published)>dt-8*86400000);
+ const combined=[...raw,...(previous?.articles||[])].filter(a=>a.url&&a.title&&Date.parse(a.published)>dt-(a.category==="used"?21:8)*86400000&& (a.category!=="used"||reuseSignal(a).accept));
  const byUrl=new Map();
  for(const a of combined){const key=canon(a.url);if(!byUrl.has(key)||a.summary.length>(byUrl.get(key).summary||"").length)byUrl.set(key,a);}
  const scored=[...byUrl.values()].map(a=>({...a,title:shortTitle(a.title),...score(a,dt)})).sort((a,b)=>b.score-a.score || Date.parse(b.published)-Date.parse(a.published));
@@ -150,7 +185,7 @@ function selectHeadlines(articles, limit=18) {
  return chosen.sort((a,b)=>(b.score||0)-(a.score||0) || Date.parse(b.published)-Date.parse(a.published)).slice(0,limit);
 }
 function visibleArticles(articles,category) {
- const fresh=articles.filter(a=>Date.now()-Date.parse(a.published)<72*3600000);
+ const fresh=articles.filter(a=>Date.now()-Date.parse(a.published)<(category==="used"?21*24:72)*3600000);
  if(category==="headlines")return selectHeadlines(fresh);
  return fresh.filter(a=>a.category===category).slice(0,55);
 }
@@ -163,11 +198,8 @@ async function fetchOne(src) {
    if(body.length>2_000_000)throw Error("feed too large");
    const parsed=parseXml(body,src);
    if(!parsed.length)throw Error("no parseable items");
-   // Market and hardware publications also cover new products. Keep this
-   // section strictly for used, refurbished, outlet and junk equipment.
-   const items=src.category==="used"?
-     parsed.filter(a=>USED_ITEM.test(a.title+" "+a.summary)&&USED_HARDWARE.test(a.title+" "+a.summary)):
-     parsed;
+   // Curate actual hardware hacks, not ordinary secondhand-price advertising.
+   const items=src.category==="used"?parsed.filter(a=>reuseSignal(a).accept):parsed;
    return {id:src.id,name:src.name,items,count:items.length,scanned:parsed.length,ok:true};
  }catch(e){return{id:src.id,name:src.name,items:[],count:0,ok:false,error:String(e).slice(0,110)};}
  finally{clearTimeout(timer);}
@@ -177,7 +209,7 @@ async function refresh(env) {
  const result=await Promise.all(SOURCES.map(fetchOne));
  const fetched=result.flatMap(r=>r.items);
  if(fetched.length===0) return {ok:false,count:old?.articles?.length||0,error:"all feeds failed",feeds:result.map(({items,...rest})=>rest)};
- const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0",editorialRevision:3};
+ const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0",editorialRevision:4};
  await env.NEWS.put("latest",JSON.stringify(digest));
  return {ok:true,count:articles.length,inserted:fetched.length,failures:result.filter(r=>!r.ok).map(r=>r.id)};
 }
@@ -368,7 +400,7 @@ export default {
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    // One-time source migration: add the new feeds without deleting the existing KV snapshot.
-   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==3){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
+   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==4){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
