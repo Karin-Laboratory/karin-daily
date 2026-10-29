@@ -18,7 +18,7 @@ const SOURCES = [
   {id:"gigazine",name:"GIGAZINE",url:"https://gigazine.net/news/rss_2.0/",category:"technology",priority:6}
 ];
 const CATS = [
-  {id:"all",label:"すべて"},{id:"domestic",label:"国内・社会"},{id:"economy",label:"経済"},
+  {id:"all",label:"すべて"},{id:"domestic",label:"国内・社会"},{id:"world",label:"国際"},{id:"economy",label:"経済"},
   {id:"ai",label:"AI・生成AI"},{id:"technology",label:"テクノロジー"},
   {id:"infrastructure",label:"通信・開発"},{id:"hardware",label:"PC・機材"},{id:"science",label:"科学・医療"}
 ];
@@ -30,6 +30,8 @@ const PROFILE = {
   hardware:["CPU","GPU","RTX","PC","SSD","中古","ワークステーション","ARM","半導体","Intel","AMD"],
   science:["創薬","薬剤","生命科学","研究","大学","半導体","太陽光","電力","医療","サイエンス"]
 };
+const FOREIGN_HEADLINE = /(?:FRB|アメリカ|米国|イスラエル|スペイン|ウクライナ|ロシア|欧州|韓国|中国|台湾|トランプ|EU|NATO)/i;
+const LOCAL_ALERT = /(?:地震|震度|津波|警報|避難|土砂災害|台風|大雨|大規模停電)/;
 const HIGH_IMPACT = ["速報","発表","決定","成立","大規模","過去最大","初めて","新制度","改正","地震","災害","被害","死亡","停止","障害","流出","値上げ","利下げ","利上げ","新型","公開","発売"];
 const TRACKING = /^(utm_|fbclid$|gclid$|yclid$|mc_[ce]id$|ref$)/i;
 const USER_AGENT = "KarinDailyPrototype/0.1 (RSS reader; contact via github.com/Karin-Laboratory/karin-daily)";
@@ -64,7 +66,7 @@ function parseXml(xml,src) {
     const rawDate=clean(tag(b,"pubDate")||tag(b,"published")||tag(b,"updated")||tag(b,"date"));
     const date=new Date(rawDate);
     if(!url||!title) return null;
-    return {id:canon(url),url,title,summary:description,source:src.name,sourceId:src.id,category:src.category,priority:src.priority,
+    return {id:canon(url),url,title,summary:description,source:src.name,sourceId:src.id,category:src.id==="nhk-top"&&FOREIGN_HEADLINE.test(title)?"world":src.category,priority:src.priority,
       published:!Number.isNaN(date.getTime())?date.toISOString():nowIso()};
   }).filter(Boolean);
 }
@@ -81,7 +83,9 @@ function score(item,dt){
  const impact=HIGH_IMPACT.reduce((n,k)=>n+(text.includes(k)?4:0),0);
  const interest=Object.values(PROFILE).flat().reduce((n,k)=>n+(text.toLowerCase().includes(k.toLowerCase())?2:0),0);
  const base= item.category==="domestic"||item.category==="economy"?48:42;
- const score=Math.max(0,Math.min(99,base+recency+Math.min(18,impact)+Math.min(19,interest)+item.priority));
+ const safety=LOCAL_ALERT.test(item.title)?22:0;
+ const domesticBonus=item.category==="domestic"&&/(?:国内|日本|政府|東京|千葉|大阪|県|市|首相)/.test(item.title)?7:0;
+ const score=Math.max(0,Math.min(99,base+recency+Math.min(18,impact)+Math.min(19,interest)+item.priority+safety+domesticBonus));
  return {score,reason: impact>=8?"社会的な重要性":interest>=6?"関心分野と高い一致":age<=12?"新着ニュース":"注目記事"};
 }
 function editorial(raw,previous) {
@@ -101,7 +105,7 @@ function editorial(raw,previous) {
  const count={};const balanced=[];
  for(const a of selected){count[a.category]=(count[a.category]||0)+1;if(count[a.category]<=(cap[a.category]||15))balanced.push(a);}
  // Edition mix: protect public-interest coverage from personalized tech overfitting.
- const group=a=>["domestic","economy"].includes(a.category)?"general":a.category==="science"?"science":"tech";
+ const group=a=>["domestic","economy","world"].includes(a.category)?"general":a.category==="science"?"science":"tech";
  const groups={general:[],tech:[],science:[]};
  for(const a of balanced)groups[group(a)].push(a);
  const front=[];
