@@ -66,7 +66,7 @@ test("headline is the default, category tabs isolate sections and avoid duplicat
  ].map(([id,title,category,score])=>({id,url:"https://example.org/"+id,title,category,score,published,summary:"ニュースの抜粋",source:"TEST",relatedSources:["TEST"]}));
  await env.NEWS.put("latest",JSON.stringify({generatedAt:published,feeds:[{id:"akiba-used",ok:true,count:0}],articles:entries,editorialRevision:4}));
  const front=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
- assert.match(front,/<title>ヘッドライン \| Karin Daily Next<\/title>/);
+ assert.match(front,/<title>ヘッドライン \| Karin Daily<\/title>/);
  assert.match(front,/href="\/" aria-current="page"/);
  assert.match(front,/href="\/\?category=ai"/);
  assert.match(front,/ヘッドライン一覧/);
@@ -74,7 +74,7 @@ test("headline is the default, category tabs isolate sections and avoid duplicat
  assert.match(front,/生成AIの新モデル/);
  assert.equal(front.split("国内の災害対応が発表").length-1,1,"top headline should appear only once");
  const ai=await (await worker.fetch(new Request("https://test.invalid/?category=ai"),env,{})).text();
- assert.match(ai,/<title>AI・生成AI \| Karin Daily Next<\/title>/);
+ assert.match(ai,/<title>AI・生成AI \| Karin Daily<\/title>/);
  assert.match(ai,/生成AIの新モデル/);
  assert.doesNotMatch(ai,/国内の災害対応が発表/);
  const headlines=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=headlines"),env,{})).json();
@@ -212,4 +212,18 @@ test("repurposing editorial refilters stale used listings on edition upgrade",as
   const status=await (await worker.fetch(new Request("https://test.invalid/api/status"),env,{})).json();
   assert.ok(status.categories.some(c=>c.id==="used"&&c.label==="ジャンク再活用"));
  }finally{globalThis.fetch=oldFetch}
+});
+
+test("production compatibility keeps old healthz and index.html endpoints", async()=>{
+ const env={NEWS:mockKV()},now=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:now,feeds:[{id:"akiba-used",ok:true,count:0}],articles:[],editorialRevision:4}));
+ const legacy=await worker.fetch(new Request("https://daily.karin-lab.com/healthz"),env,{});
+ assert.equal(legacy.status,200);
+ assert.equal(await legacy.text(),"ok");
+ const index=await worker.fetch(new Request("https://daily.karin-lab.com/index.html"),env,{});
+ assert.equal(index.status,200);
+ assert.match(await index.text(),/<title>ヘッドライン \| Karin Daily<\/title>/);
+ const rss=await (await worker.fetch(new Request("https://daily.karin-lab.com/rss.xml"),env,{})).text();
+ assert.match(rss,/<title>Karin Daily<\/title>/);
+ assert.match(rss,/<link>https:\/\/daily\.karin-lab\.com\//);
 });
