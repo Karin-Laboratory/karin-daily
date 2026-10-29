@@ -1,7 +1,7 @@
-name: Karin Daily Next prototype
+name: Karin Daily Worker CI
 on:
   push:
-    branches: [prototype/cloudflare-worker]
+    branches: [main]
     paths:
       - 'prototype/cloudflare-worker/**'
       - '.github/workflows/karin-daily-next.yml'
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Deploy to isolated prototype Worker
+      - name: Deploy Karin Daily production Worker
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: npx --yes wrangler@4 deploy --config prototype/cloudflare-worker/wrangler.jsonc
       - name: Note missing credential
