@@ -84,3 +84,21 @@ test("headline is the default, category tabs isolate sections and avoid duplicat
  const all=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=all"),env,{})).json();
  assert.equal(all.articles.length,5);
 });
+
+test("digest font is 16px across desktop and mobile, with balanced hierarchy", async () => {
+ const env={NEWS:mockKV()};
+ const now=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({
+   generatedAt:now,feeds:[],
+   articles:[{id:"typography",url:"https://example.org/type",title:"読みやすいニュース見出し",
+     summary:"本文要約を16ピクセルで表示する",source:"TEST",category:"domestic",score:90,published:now}]
+ }));
+ const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
+ assert.match(html,/\.excerpt\{font-size:16px;/);
+ assert.match(html,/\.article h3\{[^}]*font-size:21px;/);
+ assert.match(html,/\.hero \.summary\{font-size:17px;/);
+ assert.match(html,/\.tabs a\{[^}]*font-size:14px;/);
+ assert.match(html,/\.sidebar p\{font-size:14px;/);
+ assert.match(html,/\.excerpt\{font-size:16px;line-height:1\.85\}/);
+ assert.match(html,/本文要約を16ピクセルで表示する/);
+});
