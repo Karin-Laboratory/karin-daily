@@ -64,7 +64,7 @@ test("headline is the default, category tabs isolate sections and avoid duplicat
   ["ai","生成AIの新モデル","ai",90],
   ["science","創薬の研究成果","science",80]
  ].map(([id,title,category,score])=>({id,url:"https://example.org/"+id,title,category,score,published,summary:"ニュースの抜粋",source:"TEST",relatedSources:["TEST"]}));
- await env.NEWS.put("latest",JSON.stringify({generatedAt:published,feeds:[],articles:entries}));
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:published,feeds:[{id:"akiba-used",ok:true,count:0}],articles:entries,editorialRevision:4}));
  const front=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
  assert.match(front,/<title>ヘッドライン \| Karin Daily Next<\/title>/);
  assert.match(front,/href="\/" aria-current="page"/);
@@ -89,7 +89,7 @@ test("digest font is 20px at normal weight across desktop and mobile, with balan
  const env={NEWS:mockKV()};
  const now=new Date().toISOString();
  await env.NEWS.put("latest",JSON.stringify({
-   generatedAt:now,feeds:[],
+   generatedAt:now,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,
    articles:[{id:"typography",url:"https://example.org/type",title:"読みやすいニュース見出し",
      summary:"本文要約を20ピクセルで表示する",source:"TEST",category:"domestic",score:90,published:now}]
  }));
@@ -106,7 +106,7 @@ test("digest font is 20px at normal weight across desktop and mobile, with balan
 test("dark/light toggle is served as a same-origin script with safe CSP", async()=>{
  const env={NEWS:mockKV()};
  const date=new Date().toISOString();
- await env.NEWS.put("latest",JSON.stringify({generatedAt:date,feeds:[],articles:[]}));
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:date,feeds:[{id:"akiba-used",ok:true,count:0}],articles:[],editorialRevision:4}));
  const htmlResponse=await worker.fetch(new Request("https://test.invalid/"),env,{});
  const html=await htmlResponse.text();
  assert.match(html,/id="theme-toggle"/);
@@ -149,7 +149,7 @@ test("used and junk feed articles are filtered to relevant secondhand hardware",
 
 test("article list stays single-column on desktop and mobile",async()=>{
  const env={NEWS:mockKV()}, timestamp=new Date().toISOString();
- await env.NEWS.put("latest",JSON.stringify({generatedAt:timestamp,feeds:[],articles:[
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:timestamp,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,articles:[
  {id:"a",url:"https://example.org/a",title:"一つ目の記事",summary:"読みやすい本文",source:"TEST",category:"domestic",score:90,published:timestamp},
  {id:"b",url:"https://example.org/b",title:"二つ目の記事",summary:"縦に連続する本文",source:"TEST",category:"domestic",score:85,published:timestamp}
  ]}));
@@ -164,7 +164,7 @@ test("article list stays single-column on desktop and mobile",async()=>{
 test("typography retains hierarchy: bold headlines and regular-weight excerpts", async()=>{
  const env={NEWS:mockKV()};
  const now=new Date().toISOString();
- await env.NEWS.put("latest",JSON.stringify({generatedAt:now,feeds:[],articles:[{
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:now,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,articles:[{
  id:"weight",url:"https://example.org/weight",title:"見出しと本文のウェイト比較",
  summary:"大きな本文は標準ウェイトで読みやすく",category:"domestic",source:"TEST",score:88,published:now
  }]}));
