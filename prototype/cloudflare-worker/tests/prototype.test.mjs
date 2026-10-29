@@ -102,3 +102,47 @@ test("digest font is 16px across desktop and mobile, with balanced hierarchy", a
  assert.match(html,/\.excerpt\{font-size:16px;line-height:1\.85\}/);
  assert.match(html,/本文要約を16ピクセルで表示する/);
 });
+
+test("dark/light toggle is served as a same-origin script with safe CSP", async()=>{
+ const env={NEWS:mockKV()};
+ const date=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:date,feeds:[],articles:[]}));
+ const htmlResponse=await worker.fetch(new Request("https://test.invalid/"),env,{});
+ const html=await htmlResponse.text();
+ assert.match(html,/id="theme-toggle"/);
+ assert.match(html,/src="\/theme\.js"/);
+ assert.match(html,/prefers-color-scheme:dark/);
+ assert.match(html,/:root\[data-theme="dark"\]/);
+ assert.match(html,/color-scheme:dark/);
+ assert.match(htmlResponse.headers.get("Content-Security-Policy"),/script-src 'self'/);
+ const js=await worker.fetch(new Request("https://test.invalid/theme.js"),env,{});
+ assert.equal(js.status,200);
+ assert.match(js.headers.get("Content-Type"),/application\/javascript/);
+ const code=await js.text();
+ assert.match(code,/localStorage\.setItem/);
+ assert.match(code,/aria-pressed/);
+ assert.match(code,/matchMedia/);
+});
+test("used and junk feed articles are filtered to relevant secondhand hardware",async()=>{
+ const old=globalThis.fetch;
+ const date=new Date().toUTCString();
+ const usedFeed='<rss version="2.0"><channel><item><title>ジャンク ThinkPadが入荷</title><link>https://example.test/used</link><description>中古ノートPC 2万円</description><pubDate>'+date+'</pubDate></item><item><title>新品のゲーミングPC発表</title><link>https://example.test/new</link><description>最新モデルの発売</description><pubDate>'+date+'</pubDate></item></channel></rss>';
+ const generalFeed='<rss version="2.0"><channel><item><title>政府が新制度を発表</title><link>https://example.test/policy</link><description>国内の政策動向</description><pubDate>'+date+'</pubDate></item></channel></rss>';
+ globalThis.fetch=async input=>new Response(/akiba-pc\.watch|gdm\.or\.jp|news\.google\.com/.test(String(input))?usedFeed:generalFeed,{status:200});
+ const env={NEWS:mockKV()};
+ try{
+   const response=await worker.fetch(new Request("https://test.invalid/?category=used"),env,{});
+   const html=await response.text();
+   assert.match(html,/ジャンク・中古/);
+   assert.match(html,/ジャンク ThinkPadが入荷/);
+   assert.doesNotMatch(html,/新品のゲーミングPC発表/);
+   assert.match(html,/X：ジャンクPCの最新投稿/);
+   assert.match(html,/出品はニュース記事として自動収集していません/);
+   const data=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=used"),env,{})).json();
+   assert.equal(data.articles.length,1);
+   assert.equal(data.articles[0].category,"used");
+   const status=await (await worker.fetch(new Request("https://test.invalid/api/status"),env,{})).json();
+   assert.equal(status.feeds.filter(s=>s.id==="akiba-used")[0].ok,true);
+   assert.ok(status.categories.some(c=>c.id==="used"));
+ }finally{globalThis.fetch=old}
+});
