@@ -178,29 +178,38 @@ test("typography retains hierarchy: bold headlines and regular-weight excerpts",
  assert.match(html,/:root\[data-theme="dark"\]/);
 });
 
-test("repurposing filter rejects expensive listings and boosts real junk hacks",async()=>{
+
+test("repurposing editorial refilters stale used listings on edition upgrade",async()=>{
+ const oldFetch=globalThis.fetch;
  const env={NEWS:mockKV()};
+ const date=new Date().toUTCString();
  const now=new Date().toISOString();
- const fixture=(id,title,summary,sourceId="akiba-used")=>({
-   id,url:"https://example.net/"+id,title,summary,source:"TEST",sourceId,
-   category:"used",priority:8,score:99,published:now
- });
- const articles=[
-  fixture("sale","中古Latitude 5320が39,800円、中古PCセール","中古PC大量入荷"),
-  fixture("sale2","ジャンクSSD 2万9800円、大量入荷","新品同様です"),
-  fixture("hack","古いnasneをハックしてDebian化、新しい録画機に再利用","GitHubソースでの改造手順を公開"),
-  fixture("cheap","2000円ジャンクルーターをOpenWrt化して再利用","UARTの修復記録"),
-  fixture("model","ジャンクワークステーション T3610を修理して復活","Linuxサーバーに再利用")
- ];
+ const prior=[
+  ["sale","中古Latitude 5320が39,800円、中古PCセール","中古PC大量入荷"],
+  ["expensive","2万9800円で買ったジャンクPCをLinux化","手順を公開"],
+  ["nasne","古いnasneをハックしてDebian化、新しい録画機に再利用","GitHubソースでの改造手順を公開"],
+  ["tiny","2000円ジャンクルーターをOpenWrt化して再利用","UARTの修復記録"],
+  ["ws","ジャンクワークステーション T3610を修理して復活","Linuxサーバーに再利用"]
+ ].map(([id,title,summary])=>({id,url:"https://example.net/"+id,title,summary,source:"TEST",
+ sourceId:"akiba-used",category:"used",priority:8,score:90,published:now}));
  await env.NEWS.put("latest",JSON.stringify({
-   articles,generatedAt:now,feeds:[{id:"hatena-junk",name:"はてなブックマーク",ok:true,count:2}],editorialRevision:4
+  articles:prior,generatedAt:now,feeds:[{id:"akiba-used",name:"TEST",ok:true,count:5}],
+  editorialRevision:3
  }));
- const page=await (await worker.fetch(new Request("https://test.invalid/?category=used"),env,{})).text();
- // Note: old KV snapshots from previously deployed editions are refiltered by refresh/editorial.
- assert.match(page,/ジャンク再活用/);
- assert.match(page,/nasneをハック/);
- assert.match(page,/OpenWrt化/);
- assert.match(page,/T3610を修理/);
- assert.ok(page.includes("ジャンク再活用"));
- assert.match(page,/X：OpenWrt改造の最新投稿/);
+ const simpleFeed='<rss version="2.0"><channel><item><title>国内のニュース速報</title><link>https://example.org/general</link><description>国内の現況</description><pubDate>'+date+'</pubDate></item></channel></rss>';
+ globalThis.fetch=async()=>new Response(simpleFeed,{status:200});
+ try{
+  const html=await (await worker.fetch(new Request("https://test.invalid/?category=used"),env,{})).text();
+  assert.match(html,/ジャンク再活用/);
+  assert.match(html,/nasneをハック/);
+  assert.match(html,/OpenWrt化/);
+  assert.match(html,/T3610を修理/);
+  assert.doesNotMatch(html,/39,800円、中古PCセール/);
+  assert.doesNotMatch(html,/2万9800円で買った/);
+  assert.match(html,/X：OpenWrt改造の最新投稿/);
+  const listed=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=used"),env,{})).json();
+  assert.equal(listed.articles.length,3);
+  const status=await (await worker.fetch(new Request("https://test.invalid/api/status"),env,{})).json();
+  assert.ok(status.categories.some(c=>c.id==="used"&&c.label==="ジャンク再活用"));
+ }finally{globalThis.fetch=oldFetch}
 });
