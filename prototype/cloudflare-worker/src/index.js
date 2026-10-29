@@ -155,7 +155,7 @@ function visibleArticles(articles,category) {
  return fresh.filter(a=>a.category===category).slice(0,55);
 }
 async function fetchOne(src) {
- const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),6500);
+ const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),src.id.startsWith("google-")?12500:6500);
  try{
    const res=await fetch(src.url,{headers:{"Accept":"application/rss+xml,application/atom+xml,application/xml,text/xml,*/*","User-Agent":USER_AGENT},signal:ctrl.signal});
    if(!res.ok)throw Error("HTTP "+res.status);
@@ -177,7 +177,7 @@ async function refresh(env) {
  const result=await Promise.all(SOURCES.map(fetchOne));
  const fetched=result.flatMap(r=>r.items);
  if(fetched.length===0) return {ok:false,count:old?.articles?.length||0,error:"all feeds failed",feeds:result.map(({items,...rest})=>rest)};
- const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0",editorialRevision:2};
+ const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0",editorialRevision:3};
  await env.NEWS.put("latest",JSON.stringify(digest));
  return {ok:true,count:articles.length,inserted:fetched.length,failures:result.filter(r=>!r.ok).map(r=>r.id)};
 }
@@ -368,7 +368,7 @@ export default {
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    // One-time source migration: add the new feeds without deleting the existing KV snapshot.
-   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==2){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
+   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==3){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
