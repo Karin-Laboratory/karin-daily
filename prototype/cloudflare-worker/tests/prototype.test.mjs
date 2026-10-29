@@ -146,3 +146,17 @@ test("used and junk feed articles are filtered to relevant secondhand hardware",
    assert.ok(status.categories.some(c=>c.id==="used"));
  }finally{globalThis.fetch=old}
 });
+
+test("article list stays single-column on desktop and mobile",async()=>{
+ const env={NEWS:mockKV()}, timestamp=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:timestamp,feeds:[],articles:[
+ {id:"a",url:"https://example.org/a",title:"一つ目の記事",summary:"読みやすい本文",source:"TEST",category:"domestic",score:90,published:timestamp},
+ {id:"b",url:"https://example.org/b",title:"二つ目の記事",summary:"縦に連続する本文",source:"TEST",category:"domestic",score:85,published:timestamp}
+ ]}));
+ const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
+ assert.match(html,/\.articles\{display:grid;grid-template-columns:minmax\(0,1fr\)\}/);
+ assert.doesNotMatch(html,/\.articles\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
+ assert.match(html,/\.excerpt\{font-size:16px;/);
+ assert.ok(html.indexOf("一つ目の記事") < html.indexOf("二つ目の記事"));
+ assert.equal((html.match(/class="article"/g)||[]).length,2);
+});
