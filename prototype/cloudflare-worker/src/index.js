@@ -18,7 +18,7 @@ const SOURCES = [
   {id:"gigazine",name:"GIGAZINE",url:"https://gigazine.net/news/rss_2.0/",category:"technology",priority:6}
 ];
 const CATS = [
-  {id:"all",label:"すべて"},{id:"domestic",label:"国内・社会"},{id:"world",label:"国際"},{id:"economy",label:"経済"},
+  {id:"headlines",label:"ヘッドライン"},{id:"domestic",label:"国内・社会"},{id:"world",label:"国際"},{id:"economy",label:"経済"},
   {id:"ai",label:"AI・生成AI"},{id:"technology",label:"テクノロジー"},
   {id:"infrastructure",label:"通信・開発"},{id:"hardware",label:"PC・機材"},{id:"science",label:"科学・医療"}
 ];
@@ -114,6 +114,39 @@ function editorial(raw,previous) {
  front.sort((a,b)=>b.score-a.score);
  return front.concat(Object.values(groups).flat().sort((a,b)=>b.score-a.score)).slice(0,150);
 }
+// The front page is a curated edition, not simply every article in score order.
+// Reserve space for civic affairs, the economy and the reader's specialist interests.
+function selectHeadlines(articles, limit=18) {
+ const sections=[
+   {categories:["domestic"],quota:5},
+   {categories:["economy"],quota:3},
+   {categories:["world"],quota:2},
+   {categories:["ai","technology","infrastructure","hardware"],quota:6},
+   {categories:["science"],quota:2}
+ ];
+ const chosen=[], seen=new Set();
+ for(const section of sections){
+   let used=0;
+   for(const a of articles){
+     const key=a.id||a.url;
+     if(used>=section.quota)break;
+     if(section.categories.includes(a.category)&&!seen.has(key)){
+       chosen.push(a);seen.add(key);used++;
+     }
+   }
+ }
+ for(const a of articles){
+   if(chosen.length>=limit)break;
+   const key=a.id||a.url;
+   if(!seen.has(key)){chosen.push(a);seen.add(key);}
+ }
+ return chosen.sort((a,b)=>(b.score||0)-(a.score||0) || Date.parse(b.published)-Date.parse(a.published)).slice(0,limit);
+}
+function visibleArticles(articles,category) {
+ const fresh=articles.filter(a=>Date.now()-Date.parse(a.published)<72*3600000);
+ if(category==="headlines")return selectHeadlines(fresh);
+ return fresh.filter(a=>a.category===category).slice(0,55);
+}
 async function fetchOne(src) {
  const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),6500);
  try{
@@ -154,7 +187,7 @@ const CSS=String.raw`
 .masthead{padding:29px 0 22px;display:flex;align-items:end;justify-content:space-between;gap:20px}
 .eyebrow{font-size:11px;letter-spacing:.24em;color:#247d6b;font-weight:800}.logo{font-family:Georgia,"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:-.065em;font-weight:800;font-size:clamp(40px,7vw,76px);line-height:1.1}.logo span{color:#c06d42}.desc{font-size:13px;color:#687674;margin-top:11px}
 .bulletin{text-align:right;font-size:12px;color:#55726e;line-height:2}.bulletin strong{font-size:13px;color:#1c5350}.tabs{border-top:1px solid #cbd2ca;display:flex;align-items:center;gap:6px;overflow:auto;white-space:nowrap;padding:11px 0}
-.tabs a{font-size:12px;font-weight:700;border-radius:22px;padding:10px 13px;color:#475a58}.tabs a.active,.tabs a:hover{background:#194945;color:#fff}
+.tabs a{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;border-radius:22px;padding:10px 13px;color:#475a58;flex-shrink:0}.tabs a.active,.tabs a:hover{background:#194945;color:#fff}.tabs a.active:first-child{background:#b96743}.tabs .tab-count{font-size:10px;opacity:.65}.tabs a.active .tab-count{opacity:.9}
 .hero{display:grid;grid-template-columns:1.7fr 1fr;gap:34px;padding:35px 0 35px;border-bottom:1px solid #c9d0c9}
 .kicker{color:#bb6544;font-size:11px;letter-spacing:.16em;font-weight:900}.hero h1{font-family:Georgia,"Yu Mincho",serif;font-size:clamp(26px,3.4vw,43px);line-height:1.48;letter-spacing:-.03em;margin:14px 0 12px}.hero .summary{font-size:14px;color:#637270;line-height:1.9;max-width:64ch}.hero-box{background:#e5eee8;border:1px solid #c8dcd0;border-radius:8px;padding:23px}.hero-box .count{font-size:48px;color:#194945;font-family:Georgia,serif;margin:3px 0 0}.hero-box p{font-size:12px;color:#4f6e63;line-height:1.9}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:38px;margin-top:30px}
@@ -175,24 +208,32 @@ footer{margin-top:65px;background:#183c39;color:#c9ded3;padding:30px 0;font-size
 @media(max-width:560px){.shell{width:calc(100% - 28px)}.logo{font-size:47px}.masthead{padding:23px 0}.hero{padding:23px 0}.articles{grid-template-columns:1fr}.article.lead{grid-column:auto}.article.lead h3{font-size:21px}.hero-box{padding:15px}}
 `.trim();
 function page(d,category) {
- const all=d?.articles||[], current=CATS.some(c=>c.id===category)?category:"all";
+ const all=d?.articles||[], current=CATS.some(c=>c.id===category)?category:"headlines";
  const fresh=all.filter(a=>Date.now()-Date.parse(a.published)<72*3600000);
- const articles=(current==="all"?fresh:fresh.filter(a=>a.category===current)).slice(0,55);
+ const articles=visibleArticles(all,current);
+ const isFront=current==="headlines";
  const lead=articles[0], updated=d?.generatedAt?longJst(d.generatedAt):"更新待ち";
- const menu=CATS.map(c=>'<a class="'+(c.id===current?'active':'')+'" href="/?category='+h(c.id)+'">'+h(c.label)+'</a>').join("");
+ const selectedCategory=CATS.find(c=>c.id===current);
+ const menu=CATS.map(c=>{
+   const count=c.id==="headlines"?selectHeadlines(fresh).length:fresh.filter(a=>a.category===c.id).length;
+   return '<a class="'+(c.id===current?'active':'')+'" href="'+(c.id==="headlines"?"/":"/?category="+encodeURIComponent(c.id))+'"'+(c.id===current?' aria-current="page"':'')+'>'+h(c.label)+'<span class="tab-count">'+h(count)+'</span></a>';
+ }).join("");
  const feeds=d?.feeds||SOURCES.map(s=>({name:s.name,id:s.id,ok:false,count:0}));
  const sourceHtml=feeds.map(f=>'<div class="source"><span><i class="dot'+(f.ok?"":" bad")+'"></i>'+h(f.name)+'</span><span>'+h(f.ok?String(f.count)+"件":"要確認")+'</span></div>').join("");
- const featured=lead?'<div><div class="kicker">TODAY’S TOP STORY</div><h1><a href="'+h(lead.url)+'" target="_blank" rel="noopener noreferrer">'+h(lead.title)+'</a></h1><p class="summary">'+h(lead.summary||"元記事で詳しく読む")+'</p><div class="metadata">'+h(lead.source)+' · '+h(dateJst(lead.published))+' · '+h(lead.reason)+'</div></div>':'<div><div class="kicker">KARIN DAILY NEXT</div><h1>今日のニュースを、<br>自分の視点で。</h1><p class="summary">ニュースを収集中です。しばらくしてから更新してください。</p></div>';
- const body=articles.length?articles.map((a,i)=>card(a,i===0)).join(""):'<div class="empty">このカテゴリに新着記事はありません。</div>';
+ const featured=isFront&&lead?
+   '<div><div class="kicker">TODAY’S TOP HEADLINE</div><h1><a href="'+h(lead.url)+'" target="_blank" rel="noopener noreferrer">'+h(lead.title)+'</a></h1><p class="summary">'+h(lead.summary||"元記事で詳しく読む")+'</p><div class="metadata">'+h(lead.source)+' · '+h(dateJst(lead.published))+' · '+h(lead.reason)+'</div></div>':
+   '<div><div class="kicker">'+(isFront?"KARIN DAILY NEXT":"SECTION / CATEGORY")+'</div><h1>'+(isFront?'今日のニュースを、<br>自分の視点で。':h(selectedCategory.label))+'</h1><p class="summary">'+(isFront?"ニュースを収集中です。":"この分野の新着記事を、重要度と公開時刻を考慮して並べています。気になる見出しから元記事へどうぞ。")+'</p></div>';
+ const visibleCards=isFront&&lead?articles.slice(1):articles;
+ const body=visibleCards.length?visibleCards.map(a=>card(a)).join(""):'<div class="empty">'+(isFront?"ほかのヘッドラインを収集中です。":"この分野に新着記事はありません。")+'</div>';
  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
- '<title>Karin Daily Next | 自分の視点で読む今日のニュース</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
+ '<title>'+h(selectedCategory.label)+' | Karin Daily Next</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
  '<meta name="color-scheme" content="light"><style>'+CSS+'</style></head><body>'+
  '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>PROTOTYPE / 2026</span></div></div>'+
- '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div></div><nav class="tabs" aria-label="ニュースカテゴリ">'+menu+'</nav></div></header>'+
- '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">AT A GLANCE</div><div class="count">'+h(fresh.length)+'</div><p>直近72時間の収録記事。RSSをもとに重複を整理し、社会的重要性と関心分野の両面で評価しています。</p><p>新着取得：'+h(updated)+'</p></div></section>'+
- '<div class="main"><main><div class="section-heading"><h2>'+h(CATS.find(c=>c.id===current)?.label||"すべて")+' のニュース</h2><span>'+h(articles.length)+' ARTICLES</span></div><div class="articles">'+body+'</div></main>'+
+ '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
+ '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野に掲載している、直近72時間の記事数。ほかの分野は上のタブから切り替えられます。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
+ '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div><div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
- '<h3 style="margin-top:30px">編集ポリシー</h3><p>政治・社会・経済の主要ニュースを基礎に、AI、OpenWrt、通信、PC、科学・創薬、エネルギーへの関心を反映します。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
+ '<h3 style="margin-top:30px">編集ポリシー</h3><p>ヘッドラインは国内社会、経済、国際、IT、科学から横断的に選びます。各分野の全記事はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
  '<footer><div class="shell"><strong>Karin Daily Next</strong> · Experimental edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
 }
 function rss(d) {
@@ -207,10 +248,10 @@ export default {
    let d=await load(env);
    if(!d){try{await refresh(env);d=await load(env);}catch(e){console.error("initial refresh",String(e));}}
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
-   if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));return json({generatedAt:d?.generatedAt||null,articles:(d?.articles||[]).filter(a=>cat==="all"||a.category===cat).slice(0,n)});}
+   if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
    if(u.pathname!=="/")return new Response("Not found",{status:404});
-   return new Response(page(d,u.searchParams.get("category")||"all"),{headers:{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff","Cache-Control":"public,max-age=120"}});
+   return new Response(page(d,u.searchParams.get("category")||"headlines"),{headers:{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff","Cache-Control":"public,max-age=120"}});
  },
  async scheduled(event,env,ctx){ctx.waitUntil(refresh(env).then(r=>console.log("Karin Daily scheduled refresh",JSON.stringify(r))));}
 };
