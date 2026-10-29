@@ -135,7 +135,7 @@ function card(a,lead=false) {
  (a.summary?'<p class="excerpt">'+h(a.summary)+'</p>':'')+
  '<div class="foot"><span>'+h(a.source)+(a.relatedSources?.length>1?" ほか"+(a.relatedSources.length-1)+"媒体":"")+'</span><span>'+h(a.reason)+'</span></div></article>';
 }
-const CSS=String.raw\`
+const CSS=String.raw`
 :root{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:#f7f5ef;color:#1c2a2d;font-synthesis:none}
 *{box-sizing:border-box}body{margin:0}a{color:inherit;text-decoration:none}a:hover{color:#147064}header{border-bottom:1px solid #cbd2ca;background:#f7f5ef}
 .shell{width:min(1200px,calc(100% - 42px));margin:auto}.micro{background:#163e3c;color:#eaf4ea;padding:8px 0;font-size:11px;letter-spacing:.08em}.micro .shell{display:flex;justify-content:space-between;gap:10px}
@@ -161,7 +161,7 @@ footer{margin-top:65px;background:#183c39;color:#c9ded3;padding:30px 0;font-size
 .empty{padding:70px 10px;text-align:center;color:#65736e}.loadMore{margin:25px 0 0;border:1px solid #b9c7ba;color:#235b50;background:transparent;border-radius:4px;padding:11px 20px;cursor:pointer;font-weight:700}
 @media(max-width:830px){.hero,.main{grid-template-columns:1fr}.sidebar{border-left:none;padding:0;border-top:1px solid #ccc;margin-top:20px}.bulletin{display:none}}
 @media(max-width:560px){.shell{width:calc(100% - 28px)}.logo{font-size:47px}.masthead{padding:23px 0}.hero{padding:23px 0}.articles{grid-template-columns:1fr}.article.lead{grid-column:auto}.article.lead h3{font-size:21px}.hero-box{padding:15px}}
-\`.trim();
+`.trim();
 function page(d,category) {
  const all=d?.articles||[], current=CATS.some(c=>c.id===category)?category:"all";
  const fresh=all.filter(a=>Date.now()-Date.parse(a.published)<72*3600000);
