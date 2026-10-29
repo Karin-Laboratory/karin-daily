@@ -1,0 +1,40 @@
+name: Karin Daily Next prototype
+on:
+  push:
+    branches: [prototype/cloudflare-worker]
+    paths:
+      - 'prototype/cloudflare-worker/**'
+      - '.github/workflows/karin-daily-next.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check prototype/cloudflare-worker/src/index.js
+      - run: node --test prototype/cloudflare-worker/tests/*.test.mjs
+
+  deploy:
+    needs: test
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deploy to isolated prototype Worker
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx --yes wrangler@4 deploy --config prototype/cloudflare-worker/wrangler.jsonc
+      - name: Note missing credential
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "Skipped deployment; configure Cloudflare token for CI deployment."
