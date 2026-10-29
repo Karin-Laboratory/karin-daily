@@ -1,5 +1,5 @@
 /**
- * Karin Daily Next (prototype)
+ * Karin Daily (Cloudflare Worker edition)
  * Independent Cloudflare Worker + KV implementation.
  * Editorial inspiration: AI-gaiden (MIT), AI Daily Pulse (MIT).
  * No external HTML scraping, no credentials in source, no old-site mutations.
@@ -382,25 +382,26 @@ function page(d,category) {
  '<div class="used-links" aria-label="ジャンク機材再活用情報"><strong>安く買うより、面白く使い倒す。</strong><p>中古品の値下げ・大量入荷は原則除外。故障品の修復、古い端末のLinux化、ファームウェア解析、意外な転用を優先する選集です。元記事で手順や再現性を確かめてね。</p><a href="https://x.com/search?q=%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF%20%E6%94%B9%E9%80%A0&f=live" target="_blank" rel="noopener noreferrer">X：ジャンク改造の最新投稿 ↗</a><a href="https://x.com/search?q=OpenWrt%20%E6%94%B9%E9%80%A0&f=live" target="_blank" rel="noopener noreferrer">X：OpenWrt改造の最新投稿 ↗</a><a href="https://hackaday.com/" target="_blank" rel="noopener noreferrer">Hackaday 海外ハック実例 ↗</a><a href="https://qiita.com/tags/%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF" target="_blank" rel="noopener noreferrer">Qiita ジャンク技術記録 ↗</a></div>':"";
  const body=visibleCards.length?visibleCards.map(a=>card(a)).join(""):'<div class="empty">'+(isFront?"ほかのヘッドラインを収集中です。":"この分野に新着記事はありません。")+'</div>';
  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
- '<title>'+h(selectedCategory.label)+' | Karin Daily Next</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
+ '<title>'+h(selectedCategory.label)+' | Karin Daily</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
  '<meta name="color-scheme" content="light dark"><script src="/theme.js"></script><style>'+CSS+'</style></head><body>'+
- '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>PROTOTYPE / 2026</span></div></div>'+
+ '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>DAILY / 2026</span></div></div>'+
  '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="header-tools"><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div><button id="theme-toggle" class="theme-toggle" type="button" aria-label="表示モードを切り替え" aria-pressed="false"><span class="theme-symbol" aria-hidden="true">☾</span><span id="theme-label">ダークモード</span></button></div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
  '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野で選び抜いた記事数。改造・転用の実例を重視し、ジャンク再活用は過去21日以内の記事を掲載します。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
  '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div>'+usedLinks+'<div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
  '<h3 style="margin-top:30px">編集ポリシー</h3><p>ジャンク再活用は値下げ広告を除外し、古い機材のハックや新しい用途を優先します。ヘッドラインは国内社会、経済、国際、IT、科学から横断的に選びます。各分野の全記事はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
- '<footer><div class="shell"><strong>Karin Daily Next</strong> · Experimental edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
+ '<footer><div class="shell"><strong>Karin Daily</strong> · Independent edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/main/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
 }
 function rss(d) {
  const items=(d?.articles||[]).slice(0,50).map(a=>'<item><title>'+x(a.title)+'</title><link>'+x(a.url)+'</link><guid isPermaLink="false">'+x(a.id)+'</guid><pubDate>'+new Date(a.published).toUTCString()+'</pubDate><description>'+x(a.summary)+'</description></item>').join("");
- return '<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>Karin Daily Next</title><description>日本のニュースと関心分野のダイジェスト</description><link>https://karin-daily-next.karin-laboratory.workers.dev/</link>'+items+'</channel></rss>';
+ return '<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>Karin Daily</title><description>日本のニュースと関心分野のダイジェスト</description><link>https://daily.karin-lab.com/</link>'+items+'</channel></rss>';
 }
 export default {
  async fetch(request,env,ctx){
    const u=new URL(request.url);
    if(request.method!=="GET")return new Response("Method Not Allowed",{status:405});
    if(u.pathname==="/theme.js")return new Response(THEME_JS,{headers:{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"public,max-age=3600","X-Content-Type-Options":"nosniff"}});
+   if(u.pathname==="/healthz")return new Response("ok",{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-store"}});
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    // One-time source migration: add the new feeds without deleting the existing KV snapshot.
@@ -408,7 +409,7 @@ export default {
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
-   if(u.pathname!=="/")return new Response("Not found",{status:404});
+   if(u.pathname!=="/"&&u.pathname!=="/index.html")return new Response("Not found",{status:404});
    return new Response(page(d,u.searchParams.get("category")||"headlines"),{headers:{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff","Cache-Control":"public,max-age=120"}});
  },
  async scheduled(event,env,ctx){ctx.waitUntil(refresh(env).then(r=>console.log("Karin Daily scheduled refresh",JSON.stringify(r))));}
