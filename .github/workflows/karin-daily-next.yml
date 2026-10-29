@@ -5,6 +5,11 @@ on:
     paths:
       - 'prototype/cloudflare-worker/**'
       - '.github/workflows/karin-daily-next.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'prototype/cloudflare-worker/**'
+      - '.github/workflows/karin-daily-next.yml'
   workflow_dispatch:
 
 permissions:
