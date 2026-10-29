@@ -1,8 +1,10 @@
-# Karin Daily Next: standalone Cloudflare Worker prototype
+# Karin Daily: Cloudflare Worker production edition
 
-**Live:** https://karin-daily-next.karin-laboratory.workers.dev/
+**Production:** https://daily.karin-lab.com/
 
-An independently deployed prototype for replacing Karin Daily without modifying the existing Python/systemd/OCI service. It uses Cloudflare Worker + a *dedicated* KV namespace, with no database migrations or existing resource reuse. Inspired by the design patterns of [AI-gaiden](https://github.com/yo4e/AI-gaiden) (MIT) and [AI Daily Pulse](https://github.com/FavorPan/ai-daily-pulse) (MIT); it is a fresh implementation, not a wholesale merge.
+**Direct Worker / rollback test:** https://karin-daily-next.karin-laboratory.workers.dev/
+
+The production Cloudflare Worker edition replaces the public-facing Karin Daily page while retaining the original Python/systemd/OCI service unchanged behind the old Tunnel for rollback. It uses Cloudflare Worker + a *dedicated* KV namespace, with no database migrations or existing resource reuse. Inspired by the design patterns of [AI-gaiden](https://github.com/yo4e/AI-gaiden) (MIT) and [AI Daily Pulse](https://github.com/FavorPan/ai-daily-pulse) (MIT); it is a fresh implementation, not a wholesale merge.
 
 ## Implemented
 
@@ -45,4 +47,4 @@ Source feeds and their quoted descriptions are third-party data. English-languag
 
 ## Existing infrastructure
 
-The old `karin-daily` service, its local SQLite database, `karin-ai`, Cloudflare Tunnel, routes, and all existing D1 databases are untouched. This Worker is on a separate `workers.dev` subdomain and a separately created KV namespace. The D1 account limit (10) is why KV was used.
+The old `karin-daily` service, its local SQLite database, `karin-ai`, Cloudflare Tunnel and existing DNS are untouched. Cloudflare route `daily.karin-lab.com/*` now fronts the new Worker; the Worker also retains its `workers.dev` endpoint and dedicated KV namespace. For the exact route ID, recovery procedure and missing SQLite backup, see `docs/operations/2026-10-29-karin-daily-cutover.md`. The D1 account limit (10) is why KV was used.
