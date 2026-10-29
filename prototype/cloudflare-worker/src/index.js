@@ -366,7 +366,8 @@ export default {
    if(u.pathname==="/theme.js")return new Response(THEME_JS,{headers:{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"public,max-age=3600","X-Content-Type-Options":"nosniff"}});
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
-   if(!d){try{await refresh(env);d=await load(env);}catch(e){console.error("initial refresh",String(e));}}
+   // One-time source migration: add the new feeds without deleting the existing KV snapshot.
+   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
