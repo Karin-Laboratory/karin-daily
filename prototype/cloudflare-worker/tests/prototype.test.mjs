@@ -45,7 +45,9 @@ test("preserves last successful digest during complete outage",async()=>{
     await worker.fetch(new Request("https://test.invalid/"),env,{});
     const before=await env.NEWS.get("latest",{type:"json"});
     globalThis.fetch=async()=>{throw Error("offline")};
-    await worker.scheduled({},env,{waitUntil:async p=>await p});
+    const pending=[];
+    await worker.scheduled({},env,{waitUntil:p=>pending.push(p)});
+    await Promise.all(pending);
     const after=await env.NEWS.get("latest",{type:"json"});
     assert.equal(after.generatedAt,before.generatedAt);
     assert.equal(after.articles.length,1);
