@@ -85,22 +85,22 @@ test("headline is the default, category tabs isolate sections and avoid duplicat
  assert.equal(all.articles.length,5);
 });
 
-test("digest font is 16px across desktop and mobile, with balanced hierarchy", async () => {
+test("digest font is 20px at normal weight across desktop and mobile, with balanced hierarchy", async () => {
  const env={NEWS:mockKV()};
  const now=new Date().toISOString();
  await env.NEWS.put("latest",JSON.stringify({
    generatedAt:now,feeds:[],
    articles:[{id:"typography",url:"https://example.org/type",title:"読みやすいニュース見出し",
-     summary:"本文要約を16ピクセルで表示する",source:"TEST",category:"domestic",score:90,published:now}]
+     summary:"本文要約を20ピクセルで表示する",source:"TEST",category:"domestic",score:90,published:now}]
  }));
  const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
- assert.match(html,/\.excerpt\{font-size:16px;/);
- assert.match(html,/\.article h3\{[^}]*font-size:21px;/);
- assert.match(html,/\.hero \.summary\{font-size:17px;/);
- assert.match(html,/\.tabs a\{[^}]*font-size:14px;/);
- assert.match(html,/\.sidebar p\{font-size:14px;/);
- assert.match(html,/\.excerpt\{font-size:16px;line-height:1\.85\}/);
- assert.match(html,/本文要約を16ピクセルで表示する/);
+ assert.match(html,/\.excerpt\{font-size:20px;font-weight:400;/);
+ assert.match(html,/\.article h3\{[^}]*font-size:26px;font-weight:700;/);
+ assert.match(html,/\.hero \.summary\{font-size:21px;/);
+ assert.match(html,/\.tabs a\{[^}]*font-size:16px;/);
+ assert.match(html,/\.sidebar p\{font-size:16px;/);
+ assert.match(html,/\.excerpt\{font-size:20px;line-height:1\.75\}/);
+ assert.match(html,/本文要約を20ピクセルで表示する/);
 });
 
 test("dark/light toggle is served as a same-origin script with safe CSP", async()=>{
@@ -156,7 +156,24 @@ test("article list stays single-column on desktop and mobile",async()=>{
  const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
  assert.match(html,/\.articles\{display:grid;grid-template-columns:minmax\(0,1fr\)\}/);
  assert.doesNotMatch(html,/\.articles\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
- assert.match(html,/\.excerpt\{font-size:16px;/);
+ assert.match(html,/\.excerpt\{font-size:20px;font-weight:400;/);
  assert.ok(html.indexOf("一つ目の記事") < html.indexOf("二つ目の記事"));
  assert.equal((html.match(/class="article"/g)||[]).length,2);
+});
+
+test("typography retains hierarchy: bold headlines and regular-weight excerpts", async()=>{
+ const env={NEWS:mockKV()};
+ const now=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:now,feeds:[],articles:[{
+ id:"weight",url:"https://example.org/weight",title:"見出しと本文のウェイト比較",
+ summary:"大きな本文は標準ウェイトで読みやすく",category:"domestic",source:"TEST",score:88,published:now
+ }]}));
+ const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
+ assert.match(html,/\.article h3\{[^}]*font-size:26px;font-weight:700/);
+ assert.match(html,/\.excerpt\{font-size:20px;font-weight:400/);
+ assert.match(html,/\.excerpt\{[^}]*-webkit-line-clamp:5/);
+ assert.match(html,/\.articles\{display:grid;grid-template-columns:minmax\(0,1fr\)\}/);
+ assert.match(html,/@media\(max-width:560px\)\{[^}]*\}/);
+ assert.match(html,/\.excerpt\{font-size:20px;line-height:1\.75\}/);
+ assert.match(html,/:root\[data-theme="dark"\]/);
 });
