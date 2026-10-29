@@ -15,7 +15,7 @@ const SOURCES = [
   {id:"internet-watch",name:"INTERNET Watch",url:"https://internet.watch.impress.co.jp/data/rss/1.0/iw/feed.rdf",category:"infrastructure",priority:8},
   {id:"publickey",name:"Publickey",url:"https://www.publickey1.jp/atom.xml",category:"infrastructure",priority:7},
   {id:"digital-agency",name:"デジタル庁",url:"https://www.digital.go.jp/rss/news.xml",category:"domestic",priority:6},
-  {id:"zenn",name:"Zenn",url:"https://zenn.dev/feed",category:"infrastructure",priority:5}
+  {id:"gigazine",name:"GIGAZINE",url:"https://gigazine.net/news/rss_2.0/",category:"technology",priority:6}
 ];
 const CATS = [
   {id:"all",label:"すべて"},{id:"domestic",label:"国内・社会"},{id:"economy",label:"経済"},
@@ -100,7 +100,15 @@ function editorial(raw,previous) {
  const cap={domestic:32,economy:20,ai:20,technology:20,infrastructure:20,hardware:20,science:20};
  const count={};const balanced=[];
  for(const a of selected){count[a.category]=(count[a.category]||0)+1;if(count[a.category]<=(cap[a.category]||15))balanced.push(a);}
- return balanced.slice(0,150);
+ // Edition mix: protect public-interest coverage from personalized tech overfitting.
+ const group=a=>["domestic","economy"].includes(a.category)?"general":a.category==="science"?"science":"tech";
+ const groups={general:[],tech:[],science:[]};
+ for(const a of balanced)groups[group(a)].push(a);
+ const front=[];
+ const quotas={general:25,tech:15,science:10};
+ for(const g of ["general","tech","science"])front.push(...groups[g].splice(0,quotas[g]));
+ front.sort((a,b)=>b.score-a.score);
+ return front.concat(Object.values(groups).flat().sort((a,b)=>b.score-a.score)).slice(0,150);
 }
 async function fetchOne(src) {
  const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),6500);
