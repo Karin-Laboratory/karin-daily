@@ -36,6 +36,24 @@ are needed. The old Tunnel will again handle the same hostname.
 Smoke-test after deployment: `/`, `/?category=used`, `/?category=ai`,
 `/theme.js`, `/rss.xml`, `/healthz`, `/api/status` on the production host.
 
+## Production cutover result (completed 2026-10-29 JST)
+
+- GitHub PR #1 merged into `main` at `c280b3dfd148047025fdb311bc767d3be4017b6c`.
+- The source backup branch remains at the pre-merge `4997789b163e6d2deda9c58400e99222afb0e50c`.
+- Cloudflare Worker route **created**: `daily.karin-lab.com/*` -> `karin-daily-next`.
+- Route ID for precise rollback: `ee1f089375b34bf696993ffb2682b5e8`.
+- Verified actual production hostname `https://daily.karin-lab.com` serves the new headline page and AI/used categories.
+- Verified `/healthz`, `/theme.js`, `/rss.xml` and `/api/status` on the production hostname.
+- Previous DNS record and Tunnel ingress retained unchanged. Existing legacy VM, systemd and SQLite untouched.
+- **IMPORTANT:** SQLite online snapshot has NOT been taken from this conversation. A durable data-backup task is still outstanding. Do not describe it as complete.
+
+## Rollback by precise route ID
+
+Delete only route `ee1f089375b34bf696993ffb2682b5e8` in the
+`karin-lab.com` zone (`b881d8eaa59110638b585483f9bdc342`).
+Then verify `https://daily.karin-lab.com/` returns the former Python
+frontpage and `/healthz` responds `ok`. No tunnel or DNS changes required.
+
 ## Legacy SQLite backup still required (not performed by GitHub or Cloudflare)
 
 The GitHub source branch is NOT a backup of the runtime SQLite data.
