@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "karin-daily-next",
+  "main": "src/index.js",
+  "account_id": "0c1723108de2b45ee7c8e4b45014a447",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "NEWS",
+      "id": "362fb8f683944e49befbe2f546bace9b"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "17 0,6,12,18 * * *"
+    ]
+  }
+}
