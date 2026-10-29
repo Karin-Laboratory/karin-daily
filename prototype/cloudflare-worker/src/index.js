@@ -271,9 +271,9 @@ header{border-bottom:1px solid var(--rule);background:var(--paper)}
 .section-heading{display:flex;justify-content:space-between;align-items:end;gap:12px;border-bottom:2px solid #244b46;padding-bottom:12px;margin-bottom:10px}
 .section-heading h2{font-size:23px;line-height:1.4;margin:0;font-family:Georgia,"Yu Mincho",serif}
 .section-heading span{font-size:12px;color:var(--muted);white-space:nowrap}
-.articles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:34px}
+.articles{display:grid;grid-template-columns:minmax(0,1fr)}
 .article{padding:24px 0 30px;border-bottom:1px solid var(--rule);min-width:0}
-.article.lead{grid-column:span 2}
+.article.lead{grid-column:auto}
 .metadata{display:flex;flex-wrap:wrap;gap:7px 12px;align-items:center;color:var(--muted);font-size:12px;line-height:1.55}
 .tag{font-size:11px;background:var(--tag-bg);color:var(--tag-text);padding:4px 8px;border-radius:3px;font-weight:800}
 .score{margin-left:auto;color:var(--rust);font-weight:700}
