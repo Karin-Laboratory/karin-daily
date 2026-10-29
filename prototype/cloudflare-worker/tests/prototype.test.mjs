@@ -53,3 +53,34 @@ test("preserves last successful digest during complete outage",async()=>{
     assert.equal(after.articles.length,1);
   }finally{globalThis.fetch=old;}
 });
+
+test("headline is the default, category tabs isolate sections and avoid duplicated lead", async () => {
+ const env={NEWS:mockKV()};
+ const published=new Date().toISOString();
+ const entries=[
+  ["japan","国内の災害対応が発表","domestic",95],
+  ["econ","日本の経済政策","economy",86],
+  ["world","海外情勢速報","world",85],
+  ["ai","生成AIの新モデル","ai",90],
+  ["science","創薬の研究成果","science",80]
+ ].map(([id,title,category,score])=>({id,url:"https://example.org/"+id,title,category,score,published,summary:"ニュースの抜粋",source:"TEST",relatedSources:["TEST"]}));
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:published,feeds:[],articles:entries}));
+ const front=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
+ assert.match(front,/<title>ヘッドライン \| Karin Daily Next<\/title>/);
+ assert.match(front,/href="\/" aria-current="page"/);
+ assert.match(front,/href="\/\?category=ai"/);
+ assert.match(front,/ヘッドライン一覧/);
+ assert.match(front,/国内の災害対応が発表/);
+ assert.match(front,/生成AIの新モデル/);
+ assert.equal(front.split("国内の災害対応が発表").length-1,1,"top headline should appear only once");
+ const ai=await (await worker.fetch(new Request("https://test.invalid/?category=ai"),env,{})).text();
+ assert.match(ai,/<title>AI・生成AI \| Karin Daily Next<\/title>/);
+ assert.match(ai,/生成AIの新モデル/);
+ assert.doesNotMatch(ai,/国内の災害対応が発表/);
+ const headlines=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=headlines"),env,{})).json();
+ assert.equal(headlines.articles.length,5);
+ const category=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=ai"),env,{})).json();
+ assert.equal(category.articles.length,1);
+ const all=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=all"),env,{})).json();
+ assert.equal(all.articles.length,5);
+});
