@@ -1,5 +1,23 @@
 # Karin Daily
 
+## 現行版 / Current production (2026-10-29)
+
+**公開サイト:** https://daily.karin-lab.com/
+
+現在の正式版は**Cloudflare Worker + 専用Workers KV**です。国内ニュースのヘッドライン、AI・開発・科学などの分野別タブ、ジャンク機材のハックや再活用に絞った情報、ダークモードを提供します。記事一覧は1段組で、本文抜粋を20pxで表示します。通常6時間ごとにRSSを更新します。
+
+- [刷新の意図・経緯・議論・結果（2026-10-29の開発記録）](docs/history/2026-10-29-karin-daily-renewal.md)
+- [現行Workerの仕様・開発方法](prototype/cloudflare-worker/README.md)
+- [本番切替と旧版への復旧手順（未完了の旧SQLiteバックアップを含む）](docs/operations/2026-10-29-karin-daily-cutover.md)
+- [旧Python版の保存ブランチ](https://github.com/Karin-Laboratory/karin-daily/tree/archive/legacy-karin-daily-2026-10-29)
+- [Worker移行PR #1（マージ済み）](https://github.com/Karin-Laboratory/karin-daily/pull/1)
+
+**注意:** 旧Python/OCI版は復旧用に稼働・コード保存を維持していますが、旧SQLite実データを別媒体へ複製する作業は未完了です。旧版の停止・削除前に運用記録を参照してください。
+
+## 旧Python/OCI版（レガシー実装・復旧用）
+
+以下は**2026-10-29以前の実装**に関する説明です。現在の公開サイトの実装ではありません。
+
 Karin Daily is a lightweight personal news front page. It collects RSS/Atom
 feeds, normalizes and deduplicates articles, groups reports about the same
 story, ranks the resulting stories, and renders a Japanese HTML digest.
