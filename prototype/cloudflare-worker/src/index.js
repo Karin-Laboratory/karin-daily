@@ -191,73 +191,112 @@ function card(a,lead=false) {
  (a.summary?'<p class="excerpt">'+h(a.summary)+'</p>':'')+
  '<div class="foot"><span>'+h(a.source)+(a.relatedSources?.length>1?" ほか"+(a.relatedSources.length-1)+"媒体":"")+'</span><span>'+h(a.reason)+'</span></div></article>';
 }
+const THEME_JS=String.raw`(() => {
+ "use strict";
+ const key="karin-daily-theme";
+ const root=document.documentElement;
+ const preference=window.matchMedia("(prefers-color-scheme: dark)");
+ try {
+   const stored=localStorage.getItem(key);
+   if (stored==="dark"||stored==="light")root.dataset.theme=stored;
+ } catch {}
+ const isDark=()=>root.dataset.theme==="dark"||(!root.dataset.theme&&preference.matches);
+ const sync=()=>{
+   const control=document.getElementById("theme-toggle");
+   if(!control)return;
+   const dark=isDark();
+   const label=document.getElementById("theme-label");
+   const symbol=control.querySelector(".theme-symbol");
+   if(label)label.textContent=dark?"ライトモード":"ダークモード";
+   if(symbol)symbol.textContent=dark?"☀":"☾";
+   control.setAttribute("aria-pressed",String(dark));
+   control.setAttribute("aria-label",dark?"ライトモードに切り替え":"ダークモードに切り替え");
+ };
+ document.addEventListener("DOMContentLoaded",()=>{
+   const control=document.getElementById("theme-toggle");
+   if(!control)return;
+   control.addEventListener("click",()=>{
+     const next=isDark()?"light":"dark";
+     root.dataset.theme=next;
+     try{localStorage.setItem(key,next)}catch{}
+     sync();
+   });
+   if(typeof preference.addEventListener==="function")preference.addEventListener("change",sync);
+   sync();
+ });
+})();`;
 const CSS=String.raw`
+/* Dark theme obeys the system unless the reader chooses an explicit setting. */
+:root{--paper:#f7f5ef;--ink:#1c2a2d;--rule:#cbd2ca;--panel:#e5eee8;--panel-border:#c8dcd0;--tag-bg:#dce7dd;--tag-text:#265b4c;--tab-text:#475a58;--tab-active-bg:#194945;--body-text:#4d605a;--muted:#586c67;--accent:#247d6b;--rust:#bb6544;color-scheme:light;}
+:root[data-theme="dark"]{--paper:#131b1d;--ink:#eaf0ec;--rule:#344645;--panel:#202d2b;--panel-border:#455956;--tag-bg:#2b4d45;--tag-text:#c4eee0;--tab-text:#c3d4ce;--tab-active-bg:#245e53;--body-text:#c6d4cd;--muted:#a7bcb3;--accent:#9ee2c8;--rust:#e8a37b;color-scheme:dark;}
+@media(prefers-color-scheme:dark){:root:not([data-theme]){--paper:#131b1d;--ink:#eaf0ec;--rule:#344645;--panel:#202d2b;--panel-border:#455956;--tag-bg:#2b4d45;--tag-text:#c4eee0;--tab-text:#c3d4ce;--tab-active-bg:#245e53;--body-text:#c6d4cd;--muted:#a7bcb3;--accent:#9ee2c8;--rust:#e8a37b;color-scheme:dark;}}
+
 /* Karin Daily typography: comfortable reading on desktop and mobile.
    Digest excerpt scale: 12px -> 14px -> 16px (two steps). */
 :root{
   font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   font-size:16px;line-height:1.65;
-  background:#f7f5ef;color:#1c2a2d;font-synthesis:none;
+  background:var(--paper);color:var(--ink);font-synthesis:none;
 }
 *{box-sizing:border-box}
 body{margin:0}
 a{color:inherit;text-decoration:none}
 a:hover{color:#147064}
-header{border-bottom:1px solid #cbd2ca;background:#f7f5ef}
+header{border-bottom:1px solid var(--rule);background:var(--paper)}
 .shell{width:min(1200px,calc(100% - 42px));margin:auto}
 .micro{background:#163e3c;color:#eaf4ea;padding:8px 0;font-size:12px;letter-spacing:.07em}
 .micro .shell{display:flex;justify-content:space-between;gap:10px}
 .masthead{padding:29px 0 22px;display:flex;align-items:end;justify-content:space-between;gap:20px}
-.eyebrow{font-size:12px;letter-spacing:.2em;color:#247d6b;font-weight:800}
+.eyebrow{font-size:12px;letter-spacing:.2em;color:var(--accent);font-weight:800}
 .logo{font-family:Georgia,"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:-.065em;font-weight:800;font-size:clamp(40px,7vw,76px);line-height:1.1}
 .logo span{color:#c06d42}
-.desc{font-size:15px;line-height:1.7;color:#586c67;margin-top:11px}
-.bulletin{text-align:right;font-size:13px;color:#55726e;line-height:1.85}
+.desc{font-size:15px;line-height:1.7;color:var(--muted);margin-top:11px}
+.bulletin{text-align:right;font-size:13px;color:var(--muted);line-height:1.85}
 .bulletin strong{font-size:14px;color:#1c5350}
-.tabs{border-top:1px solid #cbd2ca;display:flex;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;padding:11px 0}
-.tabs a{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:700;border-radius:22px;padding:10px 14px;color:#475a58;flex-shrink:0}
-.tabs a.active,.tabs a:hover{background:#194945;color:#fff}
+.tabs{border-top:1px solid var(--rule);display:flex;align-items:center;gap:6px;overflow-x:auto;white-space:nowrap;padding:11px 0}
+.tabs a{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:700;border-radius:22px;padding:10px 14px;color:var(--tab-text);flex-shrink:0}
+.tabs a.active,.tabs a:hover{background:var(--tab-active-bg);color:#fff}
 .tabs a.active:first-child{background:#b96743}
 .tabs .tab-count{font-size:11px;opacity:.72}
 .tabs a.active .tab-count{opacity:.95}
-.hero{display:grid;grid-template-columns:1.7fr 1fr;gap:34px;padding:35px 0;border-bottom:1px solid #c9d0c9}
-.kicker{color:#bb6544;font-size:12px;letter-spacing:.16em;font-weight:900}
+.hero{display:grid;grid-template-columns:1.7fr 1fr;gap:34px;padding:35px 0;border-bottom:1px solid var(--rule)}
+.kicker{color:var(--rust);font-size:12px;letter-spacing:.16em;font-weight:900}
 .hero h1{font-family:Georgia,"Yu Mincho",serif;font-size:clamp(28px,3.4vw,44px);line-height:1.45;letter-spacing:-.03em;margin:14px 0 14px;overflow-wrap:anywhere}
-.hero .summary{font-size:17px;color:#526560;line-height:1.85;max-width:64ch}
-.hero-box{background:#e5eee8;border:1px solid #c8dcd0;border-radius:8px;padding:23px}
-.hero-box .count{font-size:48px;color:#194945;font-family:Georgia,serif;line-height:1.25;margin:8px 0}
-.hero-box p{font-size:14px;color:#4f6e63;line-height:1.85}
+.hero .summary{font-size:17px;color:var(--body-text);line-height:1.85;max-width:64ch}
+.hero-box{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:23px}
+.hero-box .count{font-size:48px;color:var(--tab-active-bg);font-family:Georgia,serif;line-height:1.25;margin:8px 0}
+.hero-box p{font-size:14px;color:var(--muted);line-height:1.85}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:38px;margin-top:30px}
 .section-heading{display:flex;justify-content:space-between;align-items:end;gap:12px;border-bottom:2px solid #244b46;padding-bottom:12px;margin-bottom:10px}
 .section-heading h2{font-size:23px;line-height:1.4;margin:0;font-family:Georgia,"Yu Mincho",serif}
-.section-heading span{font-size:12px;color:#64766e;white-space:nowrap}
+.section-heading span{font-size:12px;color:var(--muted);white-space:nowrap}
 .articles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:34px}
-.article{padding:24px 0 30px;border-bottom:1px solid #d8dcd5;min-width:0}
+.article{padding:24px 0 30px;border-bottom:1px solid var(--rule);min-width:0}
 .article.lead{grid-column:span 2}
-.metadata{display:flex;flex-wrap:wrap;gap:7px 12px;align-items:center;color:#6c7d76;font-size:12px;line-height:1.55}
-.tag{font-size:11px;background:#dce7dd;color:#265b4c;padding:4px 8px;border-radius:3px;font-weight:800}
-.score{margin-left:auto;color:#a75c3e;font-weight:700}
+.metadata{display:flex;flex-wrap:wrap;gap:7px 12px;align-items:center;color:var(--muted);font-size:12px;line-height:1.55}
+.tag{font-size:11px;background:var(--tag-bg);color:var(--tag-text);padding:4px 8px;border-radius:3px;font-weight:800}
+.score{margin-left:auto;color:var(--rust);font-weight:700}
 .article h3{font-family:Georgia,"Yu Mincho",serif;line-height:1.55;font-size:21px;margin:13px 0 12px;overflow-wrap:anywhere}
 .article.lead h3{font-size:27px}
-.excerpt{font-size:16px;color:#4d605a;line-height:1.85;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-.foot{font-size:12px;line-height:1.6;display:flex;gap:10px;justify-content:space-between;color:#697e76;padding-top:8px;flex-wrap:wrap}
-.sidebar{border-left:1px solid #d9dcd5;padding-left:25px}
+.excerpt{font-size:16px;color:var(--body-text);line-height:1.85;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.foot{font-size:12px;line-height:1.6;display:flex;gap:10px;justify-content:space-between;color:var(--muted);padding-top:8px;flex-wrap:wrap}
+.sidebar{border-left:1px solid var(--rule);padding-left:25px}
 .sidebar h3{font-family:Georgia,serif;font-size:18px;margin:9px 0 15px}
-.source{font-size:14px;line-height:1.6;padding:10px 0;border-bottom:1px solid #e3e5de;display:flex;justify-content:space-between;gap:8px}
-.source span:last-child{flex-shrink:0;color:#65786e}
+.source{font-size:14px;line-height:1.6;padding:10px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:8px}
+.source span:last-child{flex-shrink:0;color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;background:#2e9b7f;display:inline-block;margin-right:8px}
 .dot.bad{background:#c77963}
-.sidebar p{font-size:14px;color:#647970;line-height:1.85}
+.sidebar p{font-size:14px;color:var(--muted);line-height:1.85}
 footer{margin-top:65px;background:#183c39;color:#c9ded3;padding:30px 0;font-size:13px;line-height:1.85}
-.empty{padding:70px 10px;text-align:center;color:#65736e;font-size:15px}
-.loadMore{margin:25px 0 0;border:1px solid #b9c7ba;color:#235b50;background:transparent;border-radius:4px;padding:12px 22px;cursor:pointer;font-size:14px;font-weight:700}
+.empty{padding:70px 10px;text-align:center;color:var(--muted);font-size:15px}
+.loadMore{margin:25px 0 0;border:1px solid var(--rule);color:var(--accent);background:transparent;border-radius:4px;padding:12px 22px;cursor:pointer;font-size:14px;font-weight:700}
 .used-links{border:1px solid var(--rule);border-radius:9px;padding:17px 18px;margin:17px 0 9px;background:var(--panel)}
 .used-links strong{display:block;font-size:16px;margin-bottom:7px;color:var(--ink)}
 .used-links p{font-size:13px;line-height:1.75;color:var(--muted);margin:0 0 13px}
 .used-links a{display:inline-block;font-size:14px;font-weight:650;margin:0 14px 9px 0;text-decoration:underline;text-underline-offset:3px;color:var(--accent)}
 @media(max-width:830px){
   .hero,.main{grid-template-columns:1fr}
-  .sidebar{border-left:none;padding:0;border-top:1px solid #ccc;margin-top:20px}
+  .sidebar{border-left:none;padding:0;border-top:1px solid var(--rule);margin-top:20px}
   .bulletin{display:none}
 }
 @media(max-width:560px){
@@ -276,6 +315,14 @@ footer{margin-top:65px;background:#183c39;color:#c9ded3;padding:30px 0;font-size
   .excerpt{font-size:16px;line-height:1.85}
   .section-heading h2{font-size:21px}
 }
+
+
+.header-tools{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.theme-toggle{appearance:none;border:1px solid var(--rule);color:var(--ink);background:var(--panel);padding:9px 15px;border-radius:30px;font:inherit;font-size:13px;line-height:1.4;font-weight:750;white-space:nowrap;cursor:pointer;transition:background-color .15s,border-color .15s}
+.theme-toggle:hover{border-color:var(--accent)}
+.theme-toggle:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.theme-toggle .theme-symbol{font-size:16px;line-height:1;margin-right:5px}
+@media(max-width:560px){.masthead{flex-direction:column;align-items:flex-start;gap:15px}.header-tools{align-items:flex-start}.theme-toggle{font-size:14px}}
 `.trim();
 function page(d,category) {
  const all=d?.articles||[], current=CATS.some(c=>c.id===category)?category:"headlines";
@@ -299,9 +346,9 @@ function page(d,category) {
  const body=visibleCards.length?visibleCards.map(a=>card(a)).join(""):'<div class="empty">'+(isFront?"ほかのヘッドラインを収集中です。":"この分野に新着記事はありません。")+'</div>';
  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<title>'+h(selectedCategory.label)+' | Karin Daily Next</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
- '<meta name="color-scheme" content="light"><style>'+CSS+'</style></head><body>'+
+ '<meta name="color-scheme" content="light dark"><script src="/theme.js"></script><style>'+CSS+'</style></head><body>'+
  '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>PROTOTYPE / 2026</span></div></div>'+
- '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
+ '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="header-tools"><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div><button id="theme-toggle" class="theme-toggle" type="button" aria-label="表示モードを切り替え" aria-pressed="false"><span class="theme-symbol" aria-hidden="true">☾</span><span id="theme-label">ダークモード</span></button></div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
  '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野に掲載している、直近72時間の記事数。ほかの分野は上のタブから切り替えられます。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
  '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div>'+usedLinks+'<div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
@@ -316,6 +363,7 @@ export default {
  async fetch(request,env,ctx){
    const u=new URL(request.url);
    if(request.method!=="GET")return new Response("Method Not Allowed",{status:405});
+   if(u.pathname==="/theme.js")return new Response(THEME_JS,{headers:{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"public,max-age=3600","X-Content-Type-Options":"nosniff"}});
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    if(!d){try{await refresh(env);d=await load(env);}catch(e){console.error("initial refresh",String(e));}}
@@ -323,7 +371,7 @@ export default {
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
    if(u.pathname!=="/")return new Response("Not found",{status:404});
-   return new Response(page(d,u.searchParams.get("category")||"headlines"),{headers:{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff","Cache-Control":"public,max-age=120"}});
+   return new Response(page(d,u.searchParams.get("category")||"headlines"),{headers:{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff","Cache-Control":"public,max-age=120"}});
  },
  async scheduled(event,env,ctx){ctx.waitUntil(refresh(env).then(r=>console.log("Karin Daily scheduled refresh",JSON.stringify(r))));}
 };
