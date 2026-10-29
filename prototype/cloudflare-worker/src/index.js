@@ -47,11 +47,14 @@ const RESCUE_OLD = /(?:ジャンク|中古|廃棄|旧型|古い|壊れ|故障|�
 const SALE_ONLY = /(?:セール|大量入荷|特価|値下げ|割引|中古品販売|限定販売|在庫|買取|買い取り|最安|円で販売|円で登場|円で購入|円で買える|中古[ABCＳS]ランク|クーポン|お買い得|入荷|新品発売|発売開始|再販|再入荷)/i;
 const HOWTO_SIGNAL = /(?:手順|方法|解説|公開|GitHub|ソース|コード|パッチ|成功|検証|DIY|やってみた|試してみた|作ってみた|改造記録|制作|実装|firmware|tutorial|guide|project|github|source.code|open.source)/i;
 function lowPriceYen(text) {
- const prices=[...String(text).matchAll(/(?:[¥￥]\s*|約?\s*)(\d{1,3}(?:,\d{3})*|\d{4,7})(?:\s*円|\s*JPY)?/gi)]
-   .map(m=>Number(m[1].replace(/,/g,""))).filter(v=>v>=100&&v<=1000000);
- const yen=[...String(text).matchAll(/(\d{1,3}(?:,\d{3})*|\d{3,7})\s*円/g)]
-   .map(m=>Number(m[1].replace(/,/g,"")));
- return (yen.length?yen:prices.filter(v=>v>=500)).reduce((a,b)=>Math.min(a,b),Infinity);
+ // Only explicitly priced items count. Product models (T3610 etc.) do not.
+ const value=String(text);
+ const man=[...value.matchAll(/(\d+(?:\.\d+)?)\s*万\s*(\d{1,4})?\s*円/g)]
+   .map(m=>Math.round(Number(m[1])*10000)+Number(m[2]||0));
+ const yen=[...value.matchAll(/(?:[¥￥]\s*([\d,]+)|(?<![万\d])([\d,]+)\s*円)/g)]
+   .map(m=>Number((m[1]||m[2]).replace(/,/g,"")));
+ const prices=[...man,...yen].filter(n=>n>=100&&n<=1000000);
+ return prices.length?Math.min(...prices):Infinity;
 }
 function reuseSignal(a) {
  const title=a.title||"", summary=(a.summary||"").slice(0,260), text=title+" "+summary;
@@ -59,13 +62,14 @@ function reuseSignal(a) {
  const how=HOWTO_SIGNAL.test(text), sales=SALE_ONLY.test(title);
  const price=lowPriceYen(title);
  const affordable=price<=5000;
+ const overpriced=price>=15000&&price!==Infinity;
  // A real conversion/repair/hack is worth publishing even without a price.
  const maker=action&&hw;
  const revival=!action&&hw&&old&&how&&HACK_ACTION.test(summary);
  // A repair + bargain discovery (not an ordinary listing) may be interesting.
  const cheapProject=affordable&&old&&hw&&(action||HACK_ACTION.test(summary));
- const accept=(maker||revival||cheapProject)&&!(sales&&!action);
- const points=(action?20:0)+(old?12:0)+(how?9:0)+(affordable?8:0)+(RESCUE_OLD.test(title)?5:0)-(sales?17:0);
+ const accept=(maker||revival||cheapProject)&&!(sales&&!action)&&!overpriced;
+ const points=(action?20:0)+(old?12:0)+(how?9:0)+(affordable?12:0)+(RESCUE_OLD.test(title)?5:0)-(sales?17:0);
  const reason=/(?:転用|再利用|再活用|流用|repurpos|reus)/i.test(text)?"意外な使い道":
    /(?:UART|JTAG|OpenWrt|Linux化|Debian化|root化|ファームウェア|firmware|reverse.engineer)/i.test(text)?"改造手順・技術解析":
    /(?:復活|修理|修復|restore|repair)/i.test(text)?"ジャンク修復の実例":"機材ハックの実例";
@@ -190,7 +194,7 @@ function visibleArticles(articles,category) {
  return fresh.filter(a=>a.category===category).slice(0,55);
 }
 async function fetchOne(src) {
- const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),src.id.startsWith("google-")?12500:6500);
+ const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),src.category==="used"?9500:6500);
  try{
    const res=await fetch(src.url,{headers:{"Accept":"application/rss+xml,application/atom+xml,application/xml,text/xml,*/*","User-Agent":USER_AGENT},signal:ctrl.signal});
    if(!res.ok)throw Error("HTTP "+res.status);
@@ -365,7 +369,7 @@ function page(d,category) {
  const lead=articles[0], updated=d?.generatedAt?longJst(d.generatedAt):"更新待ち";
  const selectedCategory=CATS.find(c=>c.id===current);
  const menu=CATS.map(c=>{
-   const count=c.id==="headlines"?selectHeadlines(fresh).length:fresh.filter(a=>a.category===c.id).length;
+   const count=c.id==="headlines"?selectHeadlines(fresh).length:visibleArticles(all,c.id).length;
    return '<a class="'+(c.id===current?'active':'')+'" href="'+(c.id==="headlines"?"/":"/?category="+encodeURIComponent(c.id))+'"'+(c.id===current?' aria-current="page"':'')+'>'+h(c.label)+'<span class="tab-count">'+h(count)+'</span></a>';
  }).join("");
  const feeds=d?.feeds||SOURCES.map(s=>({name:s.name,id:s.id,ok:false,count:0}));
@@ -375,17 +379,17 @@ function page(d,category) {
    '<div><div class="kicker">'+(isFront?"KARIN DAILY NEXT":"SECTION / CATEGORY")+'</div><h1>'+(isFront?'今日のニュースを、<br>自分の視点で。':h(selectedCategory.label))+'</h1><p class="summary">'+(isFront?"ニュースを収集中です。":"この分野の新着記事を、重要度と公開時刻を考慮して並べています。気になる見出しから元記事へどうぞ。")+'</p></div>';
  const visibleCards=isFront&&lead?articles.slice(1):articles;
  const usedLinks=current==="used"?
- '<div class="used-links" aria-label="中古・ジャンク情報の外部検索"><strong>販売情報・投稿を直接確認</strong><p>こちらは外部サービスへの検索リンクです。Xやフリマの投稿・出品はニュース記事として自動収集していません。</p><a href="https://x.com/search?q=%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AFPC&f=live" target="_blank" rel="noopener noreferrer">X：ジャンクPCの最新投稿 ↗</a><a href="https://x.com/search?q=%E4%B8%AD%E5%8F%A4PC&f=live" target="_blank" rel="noopener noreferrer">X：中古PCの最新投稿 ↗</a><a href="https://akiba-pc.watch.impress.co.jp/category/used/" target="_blank" rel="noopener noreferrer">AKIBA PC Hotline! 中古・リユース品 ↗</a><a href="https://www.gdm.or.jp/" target="_blank" rel="noopener noreferrer">エルミタージュ秋葉原 ↗</a></div>':"";
+ '<div class="used-links" aria-label="ジャンク機材再活用情報"><strong>安く買うより、面白く使い倒す。</strong><p>中古品の値下げ・大量入荷は原則除外。故障品の修復、古い端末のLinux化、ファームウェア解析、意外な転用を優先する選集です。元記事で手順や再現性を確かめてね。</p><a href="https://x.com/search?q=%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF%20%E6%94%B9%E9%80%A0&f=live" target="_blank" rel="noopener noreferrer">X：ジャンク改造の最新投稿 ↗</a><a href="https://x.com/search?q=OpenWrt%20%E6%94%B9%E9%80%A0&f=live" target="_blank" rel="noopener noreferrer">X：OpenWrt改造の最新投稿 ↗</a><a href="https://hackaday.com/" target="_blank" rel="noopener noreferrer">Hackaday 海外ハック実例 ↗</a><a href="https://qiita.com/tags/%E3%82%B8%E3%83%A3%E3%83%B3%E3%82%AF" target="_blank" rel="noopener noreferrer">Qiita ジャンク技術記録 ↗</a></div>':"";
  const body=visibleCards.length?visibleCards.map(a=>card(a)).join(""):'<div class="empty">'+(isFront?"ほかのヘッドラインを収集中です。":"この分野に新着記事はありません。")+'</div>';
  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<title>'+h(selectedCategory.label)+' | Karin Daily Next</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
  '<meta name="color-scheme" content="light dark"><script src="/theme.js"></script><style>'+CSS+'</style></head><body>'+
  '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>PROTOTYPE / 2026</span></div></div>'+
  '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="header-tools"><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div><button id="theme-toggle" class="theme-toggle" type="button" aria-label="表示モードを切り替え" aria-pressed="false"><span class="theme-symbol" aria-hidden="true">☾</span><span id="theme-label">ダークモード</span></button></div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
- '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野に掲載している、直近72時間の記事数。ほかの分野は上のタブから切り替えられます。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
+ '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野で選び抜いた記事数。改造・転用の実例を重視し、ジャンク再活用は過去21日以内の記事を掲載します。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
  '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div>'+usedLinks+'<div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
- '<h3 style="margin-top:30px">編集ポリシー</h3><p>ヘッドラインは国内社会、経済、国際、IT、科学から横断的に選びます。各分野の全記事はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
+ '<h3 style="margin-top:30px">編集ポリシー</h3><p>ジャンク再活用は値下げ広告を除外し、古い機材のハックや新しい用途を優先します。ヘッドラインは国内社会、経済、国際、IT、科学から横断的に選びます。各分野の全記事はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
  '<footer><div class="shell"><strong>Karin Daily Next</strong> · Experimental edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
 }
 function rss(d) {
