@@ -6,19 +6,21 @@ An independently deployed prototype for replacing Karin Daily without modifying 
 
 ## Implemented
 
-- RSS 2.0, Atom and RDF feed collection from 11 configured domestic/Japanese-language sources (NHK, ITmedia, Impress, Publickey, Digital Agency, GIGAZINE).
+- RSS 2.0, Atom and RDF feed collection from 15 configured domestic/Japanese-language feeds (NHK, ITmedia, Impress, Publickey, Digital Agency, GIGAZINE, AKIBA PC Hotline!, エルミタージュ秋葉原 and two Google News keyword feeds).
 - URL canonicalization and title-bigram similarity deduplication; related-source provenance.
 - Deterministic recency, civic significance and topic-interest ranking, editorial 50/30/20 *target* mix for general news / IT / science (dependent on available feeds), category caps.
 - Short RSS-provided descriptions (no scraping or article republishing), article source links.
-- Responsive Japanese newspaper: **ヘッドライン** is the default front page, with 18 cross-sector selected headlines, plus dedicated category tabs (国内・社会, 国際, 経済, AI・生成AI, テクノロジー, 通信・開発, PC・機材, 科学・医療). Visible tab counts and active-page indicators; lead story appears only once.
+- Persistent light/dark mode toggle (browser localStorage) with automatic operating-system preference when no selection is stored; no inline JavaScript or unrelated permissions required.
+- **ジャンク・中古** tab: four new RSS feeds with used/refurbished/defective hardware filtering and custom relevance keywords. Google News reposts are deduplicated against publishers by normalized headlines. Also provides direct X search and AKIBA/GDM links; X and marketplace listings are **not automatically ingested** because no reliable unauthenticated X RSS/API is available.
+- Responsive Japanese newspaper: **ヘッドライン** is the default front page, with 18 cross-sector selected headlines, plus dedicated category tabs (国内・社会, 国際, 経済, AI・生成AI, テクノロジー, 通信・開発, PC・機材, ジャンク・中古, 科学・医療). Visible tab counts and active-page indicators; lead story appears only once.
 - RSS XML output, health/status/article APIs.
-- Scheduled refresh every six hours; initial refresh on first GET. On complete feed failure, do not overwrite the last successful digest. Keep up to eight days of source articles in the KV snapshot.
+- Scheduled refresh every six hours at 03:17, 09:17, 15:17, 21:17 JST (Cron is UTC). Initial refresh on first GET, and one-time editorial/source migration refresh when needed. On complete feed failure, do not overwrite the last successful digest. Keep up to eight days of source articles in the KV snapshot.
 - HTML escaping, URL scheme validation, minimal CSP, no public write/refresh API.
 
 ## Endpoints
 
 - `/` for the cross-sector **ヘッドライン** front page, prioritizing newsworthiness while reserving slots for news from five broad sections.
-- `/?category=domestic`, `/?category=world`, `/?category=ai` (and other tab IDs) for category-specific news. The former `?category=all` URL now falls back to the headline front page in the UI.
+- `/?category=domestic`, `/?category=world`, `/?category=ai`, `/?category=used` (and other tab IDs) for category-specific news. The former `?category=all` URL now falls back to the headline front page in the UI.
 - `/api/health` for the status of the deployed code.
 - `/api/status` for source health, article count, update timestamp and algorithm.
 - `/api/articles?category=headlines` returns the selected headline edition; `/api/articles?category=all` remains backwards-compatible and returns the complete stored set; `/api/articles?category=domestic&limit=20` returns a specific section.
