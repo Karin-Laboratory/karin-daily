@@ -32,6 +32,7 @@ const PROFILE = {
   ai:["生成AI","ChatGPT","GPT","Gemini","Claude","LLM","AI","エージェント","OpenAI"],
   infrastructure:["OpenWrt","Linux","Debian","Cloudflare","GitHub","Wi-Fi","5G","ルーター","OSS","ネットワーク","API","ソフトバンク","MT6990"],
   hardware:["CPU","GPU","RTX","PC","SSD","中古","ワークステーション","ARM","半導体","Intel","AMD"],
+  used:["中古","ジャンク","ワークステーション","ThinkPad","Latitude","Precision","Xeon","DDR3","DDR4","Z420","Z620","Z820","T3610","ハードオフ","Qualit","イオシス","じゃんぱら"],
   science:["創薬","薬剤","生命科学","研究","大学","半導体","太陽光","電力","医療","サイエンス"]
 };
 const FOREIGN_HEADLINE = /(?:FRB|アメリカ|米国|イスラエル|スペイン|ウクライナ|ロシア|欧州|韓国|中国|台湾|トランプ|EU|NATO)/i;
@@ -62,7 +63,7 @@ function linkFrom(block) {
 }
 function validHttp(raw) {try{const u=new URL(raw);return ["http:","https:"].includes(u.protocol)&&!!u.hostname?u.href:"";}catch{return "";}}
 function canon(raw) {try{const u=new URL(raw);u.hash="";for(const k of [...u.searchParams.keys()])if(TRACKING.test(k))u.searchParams.delete(k);u.hostname=u.hostname.toLowerCase();return u.href.replace(/\/$/,"");}catch{return raw;}}
-function shortTitle(s){return clean(s).replace(/\s*[-｜|]\s*(NHK|ITmedia|PC Watch|INTERNET Watch).*$/i,"").slice(0,180);}
+function shortTitle(s){return clean(s).replace(/\s*[-｜|]\s*(NHK|ITmedia|PC Watch|INTERNET Watch|AKIBA PC Hotline!|エルミタージュ秋葉原).*$/i,"").slice(0,180);}
 function parseXml(xml,src) {
   const blocks=[...xml.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi)].slice(0,24);
   return blocks.map(m=>{
@@ -99,7 +100,7 @@ function editorial(raw,previous) {
  const combined=[...raw,...(previous?.articles||[])].filter(a=>a.url&&a.title&&Date.parse(a.published)>dt-8*86400000);
  const byUrl=new Map();
  for(const a of combined){const key=canon(a.url);if(!byUrl.has(key)||a.summary.length>(byUrl.get(key).summary||"").length)byUrl.set(key,a);}
- const scored=[...byUrl.values()].map(a=>({...a,...score(a,dt)})).sort((a,b)=>b.score-a.score || Date.parse(b.published)-Date.parse(a.published));
+ const scored=[...byUrl.values()].map(a=>({...a,title:shortTitle(a.title),...score(a,dt)})).sort((a,b)=>b.score-a.score || Date.parse(b.published)-Date.parse(a.published));
  const selected=[];
  for(const a of scored) {
    const duplicate=selected.find(q=>similarity(q.title,a.title)>=0.83);
@@ -176,7 +177,7 @@ async function refresh(env) {
  const result=await Promise.all(SOURCES.map(fetchOne));
  const fetched=result.flatMap(r=>r.items);
  if(fetched.length===0) return {ok:false,count:old?.articles?.length||0,error:"all feeds failed",feeds:result.map(({items,...rest})=>rest)};
- const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0"};
+ const articles=editorial(fetched,old), digest={generatedAt:nowIso(),articles,feeds:result.map(({items,...rest})=>rest),version:"0.1.0",editorialRevision:2};
  await env.NEWS.put("latest",JSON.stringify(digest));
  return {ok:true,count:articles.length,inserted:fetched.length,failures:result.filter(r=>!r.ok).map(r=>r.id)};
 }
@@ -367,7 +368,7 @@ export default {
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    // One-time source migration: add the new feeds without deleting the existing KV snapshot.
-   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
+   if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==2){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
    if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
