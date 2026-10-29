@@ -126,18 +126,18 @@ test("dark/light toggle is served as a same-origin script with safe CSP", async(
 test("used and junk feed articles are filtered to relevant secondhand hardware",async()=>{
  const old=globalThis.fetch;
  const date=new Date().toUTCString();
- const usedFeed='<rss version="2.0"><channel><item><title>ジャンク ThinkPadが入荷</title><link>https://example.test/used</link><description>中古ノートPC 2万円</description><pubDate>'+date+'</pubDate></item><item><title>新品のゲーミングPC発表</title><link>https://example.test/new</link><description>最新モデルの発売</description><pubDate>'+date+'</pubDate></item></channel></rss>';
+ const usedFeed='<rss version="2.0"><channel><item><title>2000円のジャンクThinkPadをOpenWrtルーターに改造</title><link>https://example.test/used</link><description>UARTとGitHubのソースを使って再活用した記録</description><pubDate>'+date+'</pubDate></item><item><title>中古Latitudeが39800円のセール</title><link>https://example.test/new</link><description>中古ノートPCを大量入荷</description><pubDate>'+date+'</pubDate></item></channel></rss>';
  const generalFeed='<rss version="2.0"><channel><item><title>政府が新制度を発表</title><link>https://example.test/policy</link><description>国内の政策動向</description><pubDate>'+date+'</pubDate></item></channel></rss>';
- globalThis.fetch=async input=>new Response(/akiba-pc\.watch|gdm\.or\.jp|news\.google\.com/.test(String(input))?usedFeed:generalFeed,{status:200});
+ globalThis.fetch=async input=>new Response(/akiba-pc\.watch|b\.hatena\.ne\.jp|qiita\.com|burariweb\.info|hackaday\.com/.test(String(input))?usedFeed:generalFeed,{status:200});
  const env={NEWS:mockKV()};
  try{
    const response=await worker.fetch(new Request("https://test.invalid/?category=used"),env,{});
    const html=await response.text();
-   assert.match(html,/ジャンク・中古/);
-   assert.match(html,/ジャンク ThinkPadが入荷/);
-   assert.doesNotMatch(html,/新品のゲーミングPC発表/);
-   assert.match(html,/X：ジャンクPCの最新投稿/);
-   assert.match(html,/出品はニュース記事として自動収集していません/);
+   assert.match(html,/ジャンク再活用/);
+   assert.match(html,/2000円のジャンクThinkPadをOpenWrtルーターに改造/);
+   assert.doesNotMatch(html,/中古Latitudeが39800円のセール/);
+   assert.match(html,/X：ジャンク改造の最新投稿/);
+   assert.match(html,/中古品の値下げ・大量入荷は原則除外/);
    const data=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=used"),env,{})).json();
    assert.equal(data.articles.length,1);
    assert.equal(data.articles[0].category,"used");
@@ -176,4 +176,31 @@ test("typography retains hierarchy: bold headlines and regular-weight excerpts",
  assert.match(html,/@media\(max-width:560px\)\{[^}]*\}/);
  assert.match(html,/\.excerpt\{font-size:20px;line-height:1\.75\}/);
  assert.match(html,/:root\[data-theme="dark"\]/);
+});
+
+test("repurposing filter rejects expensive listings and boosts real junk hacks",async()=>{
+ const env={NEWS:mockKV()};
+ const now=new Date().toISOString();
+ const fixture=(id,title,summary,sourceId="akiba-used")=>({
+   id,url:"https://example.net/"+id,title,summary,source:"TEST",sourceId,
+   category:"used",priority:8,score:99,published:now
+ });
+ const articles=[
+  fixture("sale","中古Latitude 5320が39,800円、中古PCセール","中古PC大量入荷"),
+  fixture("sale2","ジャンクSSD 2万9800円、大量入荷","新品同様です"),
+  fixture("hack","古いnasneをハックしてDebian化、新しい録画機に再利用","GitHubソースでの改造手順を公開"),
+  fixture("cheap","2000円ジャンクルーターをOpenWrt化して再利用","UARTの修復記録"),
+  fixture("model","ジャンクワークステーション T3610を修理して復活","Linuxサーバーに再利用")
+ ];
+ await env.NEWS.put("latest",JSON.stringify({
+   articles,generatedAt:now,feeds:[{id:"hatena-junk",name:"はてなブックマーク",ok:true,count:2}],editorialRevision:4
+ }));
+ const page=await (await worker.fetch(new Request("https://test.invalid/?category=used"),env,{})).text();
+ // Note: old KV snapshots from previously deployed editions are refiltered by refresh/editorial.
+ assert.match(page,/ジャンク再活用/);
+ assert.match(page,/nasneをハック/);
+ assert.match(page,/OpenWrt化/);
+ assert.match(page,/T3610を修理/);
+ assert.ok(page.includes("ジャンク再活用"));
+ assert.match(page,/X：OpenWrt改造の最新投稿/);
 });
