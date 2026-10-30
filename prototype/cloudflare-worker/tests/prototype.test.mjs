@@ -227,3 +227,38 @@ test("production compatibility keeps old healthz and index.html endpoints", asyn
  assert.match(rss,/<title>Karin Daily<\/title>/);
  assert.match(rss,/<link>https:\/\/daily\.karin-lab\.com\//);
 });
+
+
+test("open tabs detect a newer digest while preserving the reader's position",async()=>{
+ const env={NEWS:mockKV()},timestamp=new Date().toISOString();
+ await env.NEWS.put("latest",JSON.stringify({
+  generatedAt:timestamp,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,articles:[]
+ }));
+ const html=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
+ assert.match(html,/name="karin-daily-generated-at"/);
+ assert.match(html,/src="\/updates\.js"/);
+ const js=await worker.fetch(new Request("https://test.invalid/updates.js"),env,{});
+ assert.equal(js.status,200);
+ const text=await js.text();
+ assert.match(text,/visibilitychange/);
+ assert.match(text,/window\.location\.reload/);
+ assert.match(text,/newAt>loadedAt/);
+ assert.match(text,/window\.scrollY<=140/);
+ assert.match(text,/setInterval\(check,5\*60\*1000\)/);
+ const status=await worker.fetch(new Request("https://test.invalid/api/status"),env,{});
+ assert.equal(status.headers.get("Cache-Control"),"no-store");
+});
+test("news edition promotes today's stories over stale high-score headlines",async()=>{
+ const env={NEWS:mockKV()},now=Date.now();
+ const articles=[
+  {id:"old",url:"https://example.org/old",title:"一昨日の高得点ニュース",summary:"古い記事",source:"TEST",category:"domestic",score:99,published:new Date(now-36*3600000).toISOString()},
+  {id:"new",url:"https://example.org/new",title:"今朝の新しいニュース",summary:"新しい記事",source:"TEST",category:"domestic",score:88,published:new Date(now-1*3600000).toISOString()}
+ ];
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:new Date(now).toISOString(),feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,articles}));
+ const html=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
+ assert.match(html,/<h1><a href="https:\/\/example\.org\/new"[^>]*>今朝の新しいニュース<\/a><\/h1>/);
+ const digest=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=headlines"),env,{})).json();
+ assert.equal(digest.articles[0].id,"new");
+ const category=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=domestic"),env,{})).json();
+ assert.equal(category.articles[0].id,"new");
+});
