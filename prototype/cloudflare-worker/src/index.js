@@ -78,22 +78,38 @@ function reuseSignal(a) {
 // Personal news preference: suppress reporting of individual homicide/violent
 // stabbing cases and road/rail collisions, without hiding transport policy,
 // crash-prevention technology, industrial accidents or natural disasters.
+// Personal newspaper: omit routine individual homicide and road crashes, but
+// retain incidents with transport-system, infrastructure or public-policy impact.
+// Apply to live RSS and historical KV articles, without modifying the KV itself.
 const HOMICIDE_EVENT = /(?:殺人|殺害|殺傷|刺殺|絞殺|毒殺|撲殺|銃殺|刺し殺|通り魔|死体遺棄|刺され(?:て|た|る|死亡|重体)|刺した(?:疑い|容疑)|刃物で.{0,12}(?:刺し|刺され))/i;
 const TRANSPORT_COLLISION = /(?:交通事故|ひき逃げ|ひき殺|当て逃げ|玉突き事故|多重衝突|衝突事故|追突|鉄道事故|列車事故|脱線事故|車にはねられ|車にひかれ|(?:乗用車|軽自動車|自動車|車|トラック|バス|タクシー|バイク|オートバイ|自転車|列車|電車).{0,24}(?:はね|衝突|追突|突っ込|横転|転落|脱線)|(?:歩行者|小学生|児童|生徒|高齢者|男性|女性|人).{0,15}(?:はねら|ひかれ))/i;
 const SAFETY_RESEARCH = /(?:交通事故(?:防止|予防|対策|削減|抑止|分析|統計)|事故(?:防止|予防|削減|回避)|交通安全|安全運転|運転支援|自動運転|衝突回避|安全基準|道路交通法|事故率|安全技術)/;
 const SPECIFIC_CASUALTY = /(?:死亡|死傷|重傷|重体|ケガ|けが|負傷|容疑|逮捕|現場|巻き込ま|遺族|被害者)/;
+// Rail and aviation accidents are public-transport safety issues, even when
+// an incident report has not yet led to a specific policy decision.
+const SYSTEM_TRANSPORT = /(?:鉄道|列車|電車|新幹線|地下鉄|モノレール|路面電車|航空|飛行機|旅客機|航空機|ヘリコプター|ヘリ|空港|エアライン)/;
+const PUBLIC_VULNERABILITY = /(?:保育園|保育所|こども園|幼稚園|託児所|園児|学童|小学校|中学校|学校|通学路|通園路|登校中|下校中|通学バス|スクールバス|児童の列|児童ら|子どもたち|子供たち|児童福祉施設|福祉施設|介護施設|病院)/;
+const PUBLIC_INFRASTRUCTURE = /(?:トンネル|地下道|高速道路|自動車専用道路|幹線道路|橋梁|橋脚|高架橋|踏切|公共施設|水道管|下水道|公共工事|公共事業)/;
+const INSTITUTIONAL_SAFETY = /(?:安全対策|安全基準|安全管理|再発防止|事故防止|事故原因|事故調査|原因究明|調査委員会|事故検証|法改正|制度改正|制度見直し|法整備|規制強化|交通政策|社会政策|保育政策|通学路対策|公共事業|インフラ整備|通行規制|道路管理|点検義務|国の責任|行政の対応|行政責任)/;
 function excludedIncident(a) {
  const title=String(a?.title||"");
- if(HOMICIDE_EVENT.test(title))return true;
- if(TRANSPORT_COLLISION.test(title)) {
-  if(SAFETY_RESEARCH.test(title)&&!SPECIFIC_CASUALTY.test(title))return false;
+ const summary=String(a?.summary||"").slice(0,240);
+ // Policy analysis is newsworthy even when a case prompted the discussion.
+ if(HOMICIDE_EVENT.test(title))return !INSTITUTIONAL_SAFETY.test(title);
+ const roadAccident=TRANSPORT_COLLISION.test(title) ||
+   (/(?:事故|衝突|突入|転落|死傷)/.test(title)&&TRANSPORT_COLLISION.test(summary));
+ if(roadAccident) {
+  if(SYSTEM_TRANSPORT.test(title))return false;
+  if(INSTITUTIONAL_SAFETY.test(title)||SAFETY_RESEARCH.test(title)&&!SPECIFIC_CASUALTY.test(title))return false;
+  if(PUBLIC_VULNERABILITY.test(title)||PUBLIC_INFRASTRUCTURE.test(title))return false;
+  // Catch headlines such as "車が施設に突っ込む" with "保育園" only in the excerpt.
+  if(PUBLIC_VULNERABILITY.test(summary)||PUBLIC_INFRASTRUCTURE.test(summary))return false;
   return true;
  }
- // Some headlines only say "suspect arrested"; the RSS excerpt clarifies
- // whether it was an unwanted homicide or hit-and-run story.
- if(/(?:事件|逮捕|指名手配|容疑者|不審死)/.test(title)) {
-  const summary=String(a?.summary||"").slice(0,200);
-  return /(?:殺人|殺害|刺殺|殺傷|ひき逃げ|交通事故)/.test(summary);
+ // "Suspect arrested" headlines sometimes omit the underlying murder.
+ if(/(?:事件|逮捕|指名手配|容疑者|不審死)/.test(title) &&
+    /(?:殺人|殺害|刺殺|殺傷)/.test(summary)) {
+  return !INSTITUTIONAL_SAFETY.test(title);
  }
  return false;
 }
@@ -462,7 +478,7 @@ function page(d,category) {
  '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野で選び抜いた記事数。改造・転用の実例を重視し、ジャンク再活用は過去21日以内の記事を掲載します。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
  '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div>'+usedLinks+'<div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
- '<h3 style="margin-top:30px">編集ポリシー</h3><p>殺人事件・交通事故（道路・鉄道）の個別報道は除外します。交通政策や事故防止技術は掲載します。ジャンク再活用は値下げ広告を除外し、古い機材のハックや新しい用途を優先。各分野はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
+ '<h3 style="margin-top:30px">編集ポリシー</h3><p>個別の殺人事件・日常的な交通事故は原則除外。鉄道・航空事故、トンネルなど公共インフラの事故、保育園・通学路の事故、安全政策や社会制度につながる報道は掲載します。ジャンク再活用は値下げ広告を除外し、改造・転用を優先します。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
  '<footer><div class="shell"><strong>Karin Daily</strong> · Independent edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/main/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
 }
 function rss(d) {
