@@ -75,6 +75,28 @@ function reuseSignal(a) {
    /(?:復活|修理|修復|restore|repair)/i.test(text)?"ジャンク修復の実例":"機材ハックの実例";
  return {accept,points,reason};
 }
+// Personal news preference: suppress reporting of individual homicide/violent
+// stabbing cases and road/rail collisions, without hiding transport policy,
+// crash-prevention technology, industrial accidents or natural disasters.
+const HOMICIDE_EVENT = /(?:殺人|殺害|殺傷|刺殺|絞殺|毒殺|撲殺|銃殺|刺し殺|通り魔|死体遺棄|刺され(?:て|た|る|死亡|重体)|刺した(?:疑い|容疑)|刃物で.{0,12}(?:刺し|刺され))/i;
+const TRANSPORT_COLLISION = /(?:交通事故|ひき逃げ|ひき殺|当て逃げ|玉突き事故|多重衝突|衝突事故|追突|鉄道事故|列車事故|脱線事故|車にはねられ|車にひかれ|(?:乗用車|軽自動車|自動車|車|トラック|バス|タクシー|バイク|オートバイ|自転車|列車|電車).{0,24}(?:はね|衝突|追突|突っ込|横転|転落|脱線)|(?:歩行者|小学生|児童|生徒|高齢者|男性|女性|人).{0,15}(?:はねら|ひかれ))/i;
+const SAFETY_RESEARCH = /(?:交通事故(?:防止|予防|対策|削減|抑止|分析|統計)|事故(?:防止|予防|削減|回避)|交通安全|安全運転|運転支援|自動運転|衝突回避|安全基準|道路交通法|事故率|安全技術)/;
+const SPECIFIC_CASUALTY = /(?:死亡|死傷|重傷|重体|ケガ|けが|負傷|容疑|逮捕|現場|巻き込ま|遺族|被害者)/;
+function excludedIncident(a) {
+ const title=String(a?.title||"");
+ if(HOMICIDE_EVENT.test(title))return true;
+ if(TRANSPORT_COLLISION.test(title)) {
+  if(SAFETY_RESEARCH.test(title)&&!SPECIFIC_CASUALTY.test(title))return false;
+  return true;
+ }
+ // Some headlines only say "suspect arrested"; the RSS excerpt clarifies
+ // whether it was an unwanted homicide or hit-and-run story.
+ if(/(?:事件|逮捕|指名手配|容疑者|不審死)/.test(title)) {
+  const summary=String(a?.summary||"").slice(0,200);
+  return /(?:殺人|殺害|刺殺|殺傷|ひき逃げ|交通事故)/.test(summary);
+ }
+ return false;
+}
 const TRACKING = /^(utm_|fbclid$|gclid$|yclid$|mc_[ce]id$|ref$)/i;
 const USER_AGENT = "KarinDailyPrototype/0.1 (RSS reader; contact via github.com/Karin-Laboratory/karin-daily)";
 const nowIso = () => new Date().toISOString();
@@ -136,7 +158,7 @@ function score(item,dt){
 }
 function editorial(raw,previous) {
  const dt=Date.now();
- const combined=[...raw,...(previous?.articles||[])].filter(a=>a.url&&a.title&&Date.parse(a.published)>dt-(a.category==="used"?21:8)*86400000&& (a.category!=="used"||reuseSignal(a).accept));
+ const combined=[...raw,...(previous?.articles||[])].filter(a=>a.url&&a.title&&!excludedIncident(a)&&Date.parse(a.published)>dt-(a.category==="used"?21:8)*86400000&& (a.category!=="used"||reuseSignal(a).accept));
  const byUrl=new Map();
  for(const a of combined){const key=canon(a.url);if(!byUrl.has(key)||a.summary.length>(byUrl.get(key).summary||"").length)byUrl.set(key,a);}
  const scored=[...byUrl.values()].map(a=>({...a,title:shortTitle(a.title),...score(a,dt)})).sort((a,b)=>b.score-a.score || Date.parse(b.published)-Date.parse(a.published));
@@ -218,13 +240,13 @@ async function fetchOne(src) {
    const parsed=parseXml(body,src);
    if(!parsed.length)throw Error("no parseable items");
    // Curate actual hardware hacks, not ordinary secondhand-price advertising.
-   const items=src.category==="used"?parsed.filter(a=>reuseSignal(a).accept):parsed;
+   const items=parsed.filter(a=>!excludedIncident(a)&&(src.category!=="used"||reuseSignal(a).accept));
    return {id:src.id,name:src.name,items,count:items.length,scanned:parsed.length,ok:true};
  }catch(e){return{id:src.id,name:src.name,items:[],count:0,ok:false,error:String(e).slice(0,110)};}
  finally{clearTimeout(timer);}
 }
 async function refresh(env) {
- const old=await env.NEWS.get("latest",{type:"json"});
+ const old=await load(env);
  const result=await Promise.all(SOURCES.map(fetchOne));
  const fetched=result.flatMap(r=>r.items);
  if(fetched.length===0) return {ok:false,count:old?.articles?.length||0,error:"all feeds failed",feeds:result.map(({items,...rest})=>rest)};
@@ -232,7 +254,7 @@ async function refresh(env) {
  await env.NEWS.put("latest",JSON.stringify(digest));
  return {ok:true,count:articles.length,inserted:fetched.length,failures:result.filter(r=>!r.ok).map(r=>r.id)};
 }
-async function load(env) {return await env.NEWS.get("latest",{type:"json"});}
+async function load(env) {const saved=await env.NEWS.get("latest",{type:"json"});return saved?{...saved,articles:(saved.articles||[]).filter(a=>!excludedIncident(a))}:null;}
 const json=(obj,status=200,cache="public, max-age=120")=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json; charset=utf-8","Access-Control-Allow-Origin":"*","Cache-Control":cache,"X-Content-Type-Options":"nosniff"}});
 const dateJst=t=>new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(t));
 const longJst=t=>new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",year:"numeric",month:"long",day:"numeric",weekday:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(t));
@@ -440,7 +462,7 @@ function page(d,category) {
  '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野で選び抜いた記事数。改造・転用の実例を重視し、ジャンク再活用は過去21日以内の記事を掲載します。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
  '<div class="main"><main><div class="section-heading"><h2>'+(isFront?"ヘッドライン一覧":h(selectedCategory.label)+" のニュース")+'</h2><span>'+h(articles.length)+' ARTICLES'+(isFront?" · 重要記事を厳選":"")+'</span></div>'+usedLinks+'<div class="articles">'+body+'</div></main>'+
  '<aside class="sidebar"><div class="eyebrow">NEWSROOM</div><h3>配信ソース</h3>'+sourceHtml+
- '<h3 style="margin-top:30px">編集ポリシー</h3><p>ジャンク再活用は値下げ広告を除外し、古い機材のハックや新しい用途を優先します。ヘッドラインは国内社会、経済、国際、IT、科学から横断的に選びます。各分野の全記事はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
+ '<h3 style="margin-top:30px">編集ポリシー</h3><p>殺人事件・交通事故（道路・鉄道）の個別報道は除外します。交通政策や事故防止技術は掲載します。ジャンク再活用は値下げ広告を除外し、古い機材のハックや新しい用途を優先。各分野はタブで確認できます。</p><p>要約は配信元のRSS抜粋です。AIによる自動要約は未接続です。出典と公開時刻を確認してお読みください。</p><p><a href="/api/status">更新状態 API ↗</a><br><a href="/rss.xml">Karin Daily RSS ↗</a></p></aside></div></div>'+
  '<footer><div class="shell"><strong>Karin Daily</strong> · Independent edition<br>自動収集された情報です。元記事の著作権は各媒体に帰属します。<br><a href="https://github.com/Karin-Laboratory/karin-daily/tree/main/prototype/cloudflare-worker">Source / GitHub ↗</a></div></footer></body></html>';
 }
 function rss(d) {

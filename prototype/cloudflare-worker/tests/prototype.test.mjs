@@ -262,3 +262,58 @@ test("news edition promotes today's stories over stale high-score headlines",asy
  const category=await (await worker.fetch(new Request("https://test.invalid/api/articles?category=domestic"),env,{})).json();
  assert.equal(category.articles[0].id,"new");
 });
+
+
+test("homicide and road/rail collisions are hidden in all views while safety technology stays",async()=>{
+ const env={NEWS:mockKV()},now=new Date().toISOString();
+ const cases=[
+  ["murder","東京で殺人事件 容疑者を逮捕","事件の続報",true],
+  ["stabbing","男性が刃物で刺され死亡","殺害された可能性",true],
+  ["suspect","事件の容疑者が新たな供述","殺人事件を捜査",true],
+  ["hitrun","別府ひき逃げ事件で新チラシ 八田容疑者の初公開写真も","追跡捜査",true],
+  ["car","乗用車が歩行者をはね死亡","事故の詳細",true],
+  ["train","スペイン鉄道事故 指令センターが速度制限伝えず運転再開か","列車が追突",true],
+  ["safety","交通事故防止AIを開発","技術で事故のリスクを減らす",false],
+  ["selfdrive","自動運転の衝突回避技術を公開","新技術",false],
+  ["policy","道路交通法の改正が成立","交通政策",false],
+  ["factory","水道管工事現場で土砂に埋まり2人死亡","工事現場の事故",false],
+  ["fukushima","原発事故後の漁業自粛区域を縮小","漁業政策",false],
+  ["earthquake","千葉で地震 強い揺れを観測","防災情報",false]
+ ].map(([id,title,summary,blocked])=>({id,url:"https://example.org/"+id,title,summary,blocked,published:now,category:"domestic",source:"TEST",score:77,priority:7}));
+ const persisted=cases.map(({blocked,...a})=>a);
+ await env.NEWS.put("latest",JSON.stringify({generatedAt:now,articles:persisted,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4}));
+ const visible=cases.filter(a=>!a.blocked);
+ const html=await (await worker.fetch(new Request("https://test.invalid/"),env,{})).text();
+ const domestic=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
+ const all=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=all"),env,{})).json()).articles;
+ const section=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=domestic"),env,{})).json()).articles;
+ const headlines=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=headlines"),env,{})).json()).articles;
+ const rss=await (await worker.fetch(new Request("https://test.invalid/rss.xml"),env,{})).text();
+ const status=await (await worker.fetch(new Request("https://test.invalid/api/status"),env,{})).json();
+ for(const a of cases.filter(a=>a.blocked)) {
+  for(const view of [html,domestic,rss])assert.doesNotMatch(view,new RegExp(a.title));
+  for(const list of [all,section,headlines])assert.ok(!list.some(x=>x.id===a.id),a.id);
+ }
+ for(const a of visible)assert.ok(all.some(x=>x.id===a.id),a.id);
+ assert.equal(status.stored,visible.length);
+});
+test("scheduled ingestion never saves homicide and traffic accident items",async()=>{
+ const old=globalThis.fetch,env={NEWS:mockKV()},date=new Date().toUTCString();
+ const feed='<rss><channel>'
+ +'<item><title>新たな殺人事件の捜査</title><link>https://example.org/murder</link><description>殺人</description><pubDate>'+date+'</pubDate></item>'
+ +'<item><title>交通事故で乗用車が衝突</title><link>https://example.org/crash</link><description>事故</description><pubDate>'+date+'</pubDate></item>'
+ +'<item><title>交通安全のための自動運転技術を開発</title><link>https://example.org/safety</link><description>研究成果</description><pubDate>'+date+'</pubDate></item>'
+ +'</channel></rss>';
+ globalThis.fetch=async()=>new Response(feed,{status:200});
+ try{
+  const pending=[];
+  await worker.scheduled({},env,{waitUntil:p=>pending.push(p)});
+  await Promise.all(pending);
+  const saved=await env.NEWS.get("latest",{type:"json"});
+  assert.equal(saved.articles.length,1);
+  assert.match(saved.articles[0].title,/自動運転技術/);
+  assert.ok(saved.feeds.every(f=>f.ok));
+  assert.ok(saved.feeds.filter(f=>f.ok&&f.count===1).length>=10); // maker feeds correctly reject unrelated safety headlines
+  assert.ok(saved.feeds.every(f=>f.count===0||f.count===1));
+ }finally{globalThis.fetch=old}
+});
