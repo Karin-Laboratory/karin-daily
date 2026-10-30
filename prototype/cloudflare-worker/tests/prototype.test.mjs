@@ -264,7 +264,7 @@ test("news edition promotes today's stories over stale high-score headlines",asy
 });
 
 
-test("homicide and road/rail collisions are hidden in all views while safety technology stays",async()=>{
+test("routine homicide and road accidents are hidden; public safety stories are retained",async()=>{
  const env={NEWS:mockKV()},now=new Date().toISOString();
  const cases=[
   ["murder","東京で殺人事件 容疑者を逮捕","事件の続報",true],
@@ -272,7 +272,18 @@ test("homicide and road/rail collisions are hidden in all views while safety tec
   ["suspect","事件の容疑者が新たな供述","殺人事件を捜査",true],
   ["hitrun","別府ひき逃げ事件で新チラシ 八田容疑者の初公開写真も","追跡捜査",true],
   ["car","乗用車が歩行者をはね死亡","事故の詳細",true],
-  ["train","スペイン鉄道事故 指令センターが速度制限伝えず運転再開か","列車が追突",true],
+  ["train","スペイン鉄道事故 指令センターが速度制限伝えず運転再開か","列車が追突",false],
+  ["air","旅客機が離陸直後に墜落 航空事故調査","航空安全に関する事故",false],
+  ["rail","列車が追突、原因調査へ","鉄道の安全性",false],
+  ["nursery","保育園に乗用車が突っ込み園児が負傷","通園時の安全",false],
+  ["nursery-summary","車が施設に突っ込み多数が負傷","保育園の園児が巻き込まれた",false],
+  ["commute","通学路で車が児童らをはねる事故","安全対策が課題",false],
+  ["schoolbus","スクールバスが乗用車と衝突","学校での送迎事故",false],
+  ["tunnel","高速道路のトンネルで車が衝突し火災","安全設備を点検",false],
+  ["tunnel-fire","トンネル火災で交通規制","防災対応",false],
+  ["public-works","高架橋の工事で事故 再発防止策を検討","公共事業の安全性",false],
+  ["policy-caused","殺人事件を受け制度見直しへ","再発防止の制度改革",false],
+  ["ordinary","市道で車にはねられ1人死亡","単独の交通事故",true],
   ["safety","交通事故防止AIを開発","技術で事故のリスクを減らす",false],
   ["selfdrive","自動運転の衝突回避技術を公開","新技術",false],
   ["policy","道路交通法の改正が成立","交通政策",false],
@@ -316,4 +327,37 @@ test("scheduled ingestion never saves homicide and traffic accident items",async
   assert.ok(saved.feeds.filter(f=>f.ok&&f.count===1).length>=10); // maker feeds correctly reject unrelated safety headlines
   assert.ok(saved.feeds.every(f=>f.count===0||f.count===1));
  }finally{globalThis.fetch=old}
+});
+
+
+test("public safety preferences apply to rail, aviation, childcare and infrastructure in each output",async()=>{
+ const env={NEWS:mockKV()},now=new Date().toISOString();
+ const rows=[
+  ["rail","スペイン鉄道事故で乗客名簿に日本人2人の名前 確認急ぐ","world",true],
+  ["flight","航空機が滑走路で衝突 事故調査を開始","world",true],
+  ["daycare","保育園に自動車が突っ込んだ","domestic",true],
+  ["tunnel","トンネル火災で高速道路を通行止め","domestic",true],
+  ["policy","殺人事件で安全基準の見直しを議論","domestic",true],
+  ["road","高齢者が車にはねられ死亡","domestic",false],
+  ["crime","殺人事件の容疑者を逮捕","domestic",false]
+ ];
+ await env.NEWS.put("latest",JSON.stringify({
+  generatedAt:now,feeds:[{id:"akiba-used",ok:true,count:0}],editorialRevision:4,
+  articles:rows.map(([id,title,category])=>({id,title,category,url:"https://example.org/"+id,summary:"",source:"TEST",score:75,published:now}))
+ }));
+ const all=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=all"),env,{})).json()).articles;
+ const head=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=headlines"),env,{})).json()).articles;
+ const world=(await (await worker.fetch(new Request("https://test.invalid/api/articles?category=world"),env,{})).json()).articles;
+ const rss=await (await worker.fetch(new Request("https://test.invalid/rss.xml"),env,{})).text();
+ const html=await (await worker.fetch(new Request("https://test.invalid/?category=domestic"),env,{})).text();
+ const status=await (await worker.fetch(new Request("https://test.invalid/api/status"),env,{})).json();
+ for(const [id,title,category,show] of rows) {
+  assert.equal(all.some(a=>a.id===id),show,id+" JSON all");
+  assert.equal(head.some(a=>a.id===id),show,id+" headlines");
+  assert.equal(rss.includes(title),show,id+" RSS");
+  if(category==="world")assert.equal(world.some(a=>a.id===id),show,id+" world");
+  else assert.equal(html.includes(title),show,id+" domestic");
+ }
+ assert.equal(status.stored,5);
+ assert.match(html,/鉄道・航空事故/);
 });
