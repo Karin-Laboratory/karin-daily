@@ -162,7 +162,22 @@ function editorial(raw,previous) {
 }
 // The front page is a curated edition, not simply every article in score order.
 // Reserve space for civic affairs, the economy and the reader's specialist interests.
+// Ranking in the stored digest is about significance. The visible edition
+// also needs to favor today's news, without deleting historical KV articles.
+function displayRank(a,mode="headlines",now=Date.now()) {
+ const timestamp=Date.parse(a.published);
+ const hours=Number.isFinite(timestamp)?Math.max(0,(now-timestamp)/3600000):1000;
+ const grace=mode==="used"?24:6;
+ const decay=mode==="used"?0.12:0.68;
+ return (a.score||0)-Math.min(85,Math.max(0,hours-grace)*decay);
+}
+function displayOrder(articles,mode="headlines") {
+ const now=Date.now();
+ return [...articles].sort((a,b)=>displayRank(b,mode,now)-displayRank(a,mode,now) ||
+   Date.parse(b.published)-Date.parse(a.published));
+}
 function selectHeadlines(articles, limit=18) {
+ const ranked=displayOrder(articles,"headlines");
  const sections=[
    {categories:["domestic"],quota:5},
    {categories:["economy"],quota:3},
@@ -173,7 +188,7 @@ function selectHeadlines(articles, limit=18) {
  const chosen=[], seen=new Set();
  for(const section of sections){
    let used=0;
-   for(const a of articles){
+   for(const a of ranked){
      const key=a.id||a.url;
      if(used>=section.quota)break;
      if(section.categories.includes(a.category)&&!seen.has(key)){
@@ -181,17 +196,17 @@ function selectHeadlines(articles, limit=18) {
      }
    }
  }
- for(const a of articles){
+ for(const a of ranked){
    if(chosen.length>=limit)break;
    const key=a.id||a.url;
    if(!seen.has(key)){chosen.push(a);seen.add(key);}
  }
- return chosen.sort((a,b)=>(b.score||0)-(a.score||0) || Date.parse(b.published)-Date.parse(a.published)).slice(0,limit);
+ return displayOrder(chosen,"headlines").slice(0,limit);
 }
 function visibleArticles(articles,category) {
  const fresh=articles.filter(a=>Date.now()-Date.parse(a.published)<(category==="used"?21*24:72)*3600000);
  if(category==="headlines")return selectHeadlines(fresh);
- return fresh.filter(a=>a.category===category).slice(0,55);
+ return displayOrder(fresh.filter(a=>a.category===category),category).slice(0,55);
 }
 async function fetchOne(src) {
  const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),src.category==="used"?9500:6500);
@@ -218,7 +233,7 @@ async function refresh(env) {
  return {ok:true,count:articles.length,inserted:fetched.length,failures:result.filter(r=>!r.ok).map(r=>r.id)};
 }
 async function load(env) {return await env.NEWS.get("latest",{type:"json"});}
-const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json; charset=utf-8","Access-Control-Allow-Origin":"*","Cache-Control":"public, max-age=120","X-Content-Type-Options":"nosniff"}});
+const json=(obj,status=200,cache="public, max-age=120")=>new Response(JSON.stringify(obj),{status,headers:{"Content-Type":"application/json; charset=utf-8","Access-Control-Allow-Origin":"*","Cache-Control":cache,"X-Content-Type-Options":"nosniff"}});
 const dateJst=t=>new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(t));
 const longJst=t=>new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",year:"numeric",month:"long",day:"numeric",weekday:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(t));
 function card(a,lead=false) {
@@ -228,6 +243,40 @@ function card(a,lead=false) {
  (a.summary?'<p class="excerpt">'+h(a.summary)+'</p>':'')+
  '<div class="foot"><span>'+h(a.source)+(a.relatedSources?.length>1?" ほか"+(a.relatedSources.length-1)+"媒体":"")+'</span><span>'+h(a.reason)+'</span></div></article>';
 }
+const AUTO_UPDATE_JS=String.raw`(() => {
+ "use strict";
+ const meta=document.querySelector('meta[name="karin-daily-generated-at"]');
+ const loadedAt=Date.parse(meta?.content||"")||0;
+ let inFlight=false,lastCheck=0;
+ function notify() {
+  if(document.getElementById("daily-new-edition"))return;
+  const button=document.createElement("button");
+  button.id="daily-new-edition";
+  button.type="button";
+  button.textContent="新しいニュースがあります。クリックして更新";
+  button.addEventListener("click",()=>window.location.reload());
+  document.body.prepend(button);
+ }
+ async function check() {
+  if(document.visibilityState!=="visible"||inFlight||Date.now()-lastCheck<15000)return;
+  inFlight=true;lastCheck=Date.now();
+  try {
+   const response=await fetch("/api/status",{cache:"no-store",headers:{"Accept":"application/json"}});
+   if(!response.ok)return;
+   const data=await response.json(),newAt=Date.parse(data.generatedAt||"");
+   if(Number.isFinite(newAt)&&newAt>loadedAt+1000) {
+    if(window.scrollY<=140)window.location.reload();
+    else notify();
+   }
+  } catch (_) {
+   // Network disruption is not a reason to replace a readable edition.
+  } finally {inFlight=false;}
+ }
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")check();});
+ window.addEventListener("pageshow",check);
+ window.addEventListener("focus",check);
+ setInterval(check,5*60*1000);
+})();`;
 const THEME_JS=String.raw`(() => {
  "use strict";
  const key="karin-daily-theme";
@@ -331,6 +380,8 @@ footer{margin-top:65px;background:#183c39;color:#c9ded3;padding:30px 0;font-size
 .used-links strong{display:block;font-size:18px;margin-bottom:7px;color:var(--ink)}
 .used-links p{font-size:15px;line-height:1.75;color:var(--muted);margin:0 0 13px}
 .used-links a{display:inline-block;font-size:16px;font-weight:650;margin:0 14px 9px 0;text-decoration:underline;text-underline-offset:3px;color:var(--accent)}
+#daily-new-edition{position:fixed;z-index:100;top:12px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 30px);border:1px solid var(--accent);border-radius:30px;background:var(--tab-active-bg);color:#fff;padding:12px 22px;cursor:pointer;font:inherit;font-size:15px;font-weight:700;box-shadow:0 5px 24px #0003}
+#daily-new-edition:focus-visible{outline:3px solid var(--rust);outline-offset:2px}
 @media(max-width:830px){
   .hero,.main{grid-template-columns:1fr}
   .sidebar{border-left:none;padding:0;border-top:1px solid var(--rule);margin-top:20px}
@@ -383,7 +434,7 @@ function page(d,category) {
  const body=visibleCards.length?visibleCards.map(a=>card(a)).join(""):'<div class="empty">'+(isFront?"ほかのヘッドラインを収集中です。":"この分野に新着記事はありません。")+'</div>';
  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<title>'+h(selectedCategory.label)+' | Karin Daily</title><meta name="description" content="国内ニュースを中心に、AI、OpenWrt、科学、PCの情報を一枚に編集。">'+
- '<meta name="color-scheme" content="light dark"><script src="/theme.js"></script><style>'+CSS+'</style></head><body>'+
+ '<meta name="color-scheme" content="light dark"><meta name="karin-daily-generated-at" content="'+h(d?.generatedAt||"")+'"><script src="/theme.js"></script><script defer src="/updates.js"></script><style>'+CSS+'</style></head><body>'+
  '<div class="micro"><div class="shell"><span>INDEPENDENT NEWS DIGEST · JAPAN</span><span>DAILY / 2026</span></div></div>'+
  '<header><div class="shell"><div class="masthead"><div><div class="eyebrow">THE PERSONAL INTELLIGENCE EDITION</div><div class="logo">Karin Daily<span>.</span></div><div class="desc">国内ニュースを中心に、今日の重要事項と関心分野をひとつに。</div></div><div class="header-tools"><div class="bulletin"><strong>DAILY EDITION</strong><br>'+h(updated)+' 更新<br>自動収集 · 出典へのリンク</div><button id="theme-toggle" class="theme-toggle" type="button" aria-label="表示モードを切り替え" aria-pressed="false"><span class="theme-symbol" aria-hidden="true">☾</span><span id="theme-label">ダークモード</span></button></div></div><nav class="tabs" aria-label="ヘッドライン・分野別紙面">'+menu+'</nav></div></header>'+
  '<div class="shell"><section class="hero">'+featured+'<div class="hero-box"><div class="eyebrow">'+(isFront?"HEADLINE EDITION":"SECTION DIGEST")+'</div><div class="count">'+h(articles.length)+'</div><p>'+(isFront?"重要ニュースと関心分野をバランスよく選んだ、今日のヘッドライン。分野別の全記事は上のタブから読めます。":"この分野で選び抜いた記事数。改造・転用の実例を重視し、ジャンク再活用は過去21日以内の記事を掲載します。")+'</p><p>新着取得：'+h(updated)+'</p></div></section>'+
@@ -400,13 +451,14 @@ export default {
  async fetch(request,env,ctx){
    const u=new URL(request.url);
    if(request.method!=="GET")return new Response("Method Not Allowed",{status:405});
+   if(u.pathname==="/updates.js")return new Response(AUTO_UPDATE_JS,{headers:{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"public,max-age=3600","X-Content-Type-Options":"nosniff"}});
    if(u.pathname==="/theme.js")return new Response(THEME_JS,{headers:{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"public,max-age=3600","X-Content-Type-Options":"nosniff"}});
    if(u.pathname==="/healthz")return new Response("ok",{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-store"}});
    if(u.pathname==="/api/health")return json({ok:true,service:"karin-daily-next",version:"0.1.0"});
    let d=await load(env);
    // One-time source migration: add the new feeds without deleting the existing KV snapshot.
    if(!d||!d.feeds?.some(f=>f.id==="akiba-used")||d.editorialRevision!==4){try{await refresh(env);d=await load(env);}catch(e){console.error("initial/source refresh",String(e));}}
-   if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"});
+   if(u.pathname==="/api/status")return json({generatedAt:d?.generatedAt||null,stored:d?.articles?.length||0,feeds:d?.feeds||[],categories:CATS,algorithm:"deterministic relevance + age + cross-source clustering; AI scoring not enabled"},200,"no-store");
    if(u.pathname==="/api/articles"){const cat=u.searchParams.get("category")||"all", n=Math.max(1,Math.min(150,Number(u.searchParams.get("limit"))||50));const items=cat==="all"?(d?.articles||[]):visibleArticles(d?.articles||[],cat==="headlines"?"headlines":cat);return json({generatedAt:d?.generatedAt||null,articles:items.slice(0,n)});}
    if(u.pathname==="/rss.xml")return new Response(rss(d),{headers:{"Content-Type":"application/rss+xml; charset=utf-8","Cache-Control":"public,max-age=300"}});
    if(u.pathname!=="/"&&u.pathname!=="/index.html")return new Response("Not found",{status:404});
